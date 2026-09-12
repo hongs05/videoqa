@@ -64,3 +64,12 @@ Si algo no funciona, pregúntale directamente: «no me está revisando nada, ¿q
   una vez.
 - **Con la revisión automática encendida, la Mac tiene que quedar encendida y con la sesión
   abierta.** La pantalla bloqueada vale; cerrar sesión o apagarla, no.
+
+## Instalación (una sola vez, ~15 min)
+
+1. Descomprime `VideoQA-demo.zip` y haz **clic derecho → Abrir** sobre `Instalar VideoQA.command`
+   (la primera vez macOS avisa que "procede de un desarrollador no identificado"; con clic
+   derecho → Abrir se puede continuar). Te pedirá la contraseña de la Mac para instalar
+   herramientas.
+2. Cuando termine, abre Claude en la carpeta `videoqa` de tu usuario y escribe `/instalar`.
+   Claude te guiará: elegir la carpeta de videos, iniciar sesión, hacer una prueba.
