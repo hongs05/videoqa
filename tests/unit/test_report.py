@@ -49,6 +49,19 @@ def test_write_evidence_crops_with_bbox(tmp_path):
     assert job.path(ev["b"]).exists()
 
 
+def test_write_evidence_skips_malformed_bbox_without_raising(tmp_path):
+    video = tmp_path / "v.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    (job.dir / "frames").mkdir()
+    Image.new("RGB", (108, 192), (0, 0, 0)).save(job.path("frames/sec_0025.jpg"))
+    Image.new("RGB", (108, 192), (0, 0, 0)).save(job.path("frames/sec_0040.jpg"))
+    fs = [fnd("bad", "blocker", 12, frame="frames/sec_0025.jpg", bbox=[0.5, 0.5, -0.4, 0.1]),
+          fnd("good", "warning", 20, frame="frames/sec_0040.jpg", bbox=[0.1, 0.1, 0.2, 0.2])]
+    ev = write_evidence(job, fs)
+    assert "good" in ev
+    assert job.path(ev["good"]).exists()
+
+
 def test_build_report_writes_file(tmp_path):
     video = tmp_path / "v.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from PIL import Image, ImageDraw
 
 from videoqa.findings import Finding, count_by_severity, sort_findings
 from videoqa.job import Job
+
+log = logging.getLogger("videoqa")
 
 CHECK_LABELS = {
     "spelling_unknown_word": "Ortografía", "spelling_punctuation": "Puntuación", "brand_color": "Color de marca",
@@ -37,15 +40,27 @@ def write_evidence(job: Job, findings: list[Finding]) -> dict[str, str]:
     for f in sort_findings(findings):
         if not f.frame or not job.path(f.frame).exists():
             continue
-        n += 1
-        img = Image.open(job.path(f.frame)).convert("RGB")
-        if f.bbox:
-            W, H = img.size
-            x, y, w, h = f.bbox
-            ImageDraw.Draw(img).rectangle([x * W, y * H, (x + w) * W, (y + h) * H], outline=(255, 0, 0), width=max(2, W // 200))
-        rel = f"evidencia/{n:02d}_{_slug_t(f.t_start)}.jpg"
-        img.save(job.path(rel), quality=85)
-        evidence[f.id] = rel
+        try:
+            img = Image.open(job.path(f.frame)).convert("RGB")
+            if f.bbox:
+                W, H = img.size
+                x, y, w, h = f.bbox
+                x0 = min(max(x, 0.0), 1.0)
+                y0 = min(max(y, 0.0), 1.0)
+                x1 = min(max(x + w, 0.0), 1.0)
+                y1 = min(max(y + h, 0.0), 1.0)
+                if x1 < x0:
+                    x0, x1 = x1, x0
+                if y1 < y0:
+                    y0, y1 = y1, y0
+                if x1 > x0 and y1 > y0:
+                    ImageDraw.Draw(img).rectangle([x0 * W, y0 * H, x1 * W, y1 * H], outline=(255, 0, 0), width=max(2, W // 200))
+            n += 1
+            rel = f"evidencia/{n:02d}_{_slug_t(f.t_start)}.jpg"
+            img.save(job.path(rel), quality=85)
+            evidence[f.id] = rel
+        except Exception as e:  # noqa: BLE001 — un bbox/frame malformado no debe tumbar el reporte completo
+            log.warning("No se pudo generar evidencia para %s (%s: %s)", f.id, type(e).__name__, e)
     return evidence
 
 
