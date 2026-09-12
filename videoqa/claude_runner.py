@@ -23,7 +23,16 @@ def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int 
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"claude -p superó {timeout}s") from e
     if proc.returncode != 0:
-        raise ClaudeError(f"claude -p salió con {proc.returncode}: {proc.stderr[-2000:]}")
+        detail = ""
+        try:
+            stdout_data = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            stdout_data = None
+        if isinstance(stdout_data, dict):
+            detail = str(stdout_data.get("result") or stdout_data.get("error") or "")
+        if not detail:
+            detail = proc.stderr[-2000:]
+        raise ClaudeError(f"claude -p salió con {proc.returncode}: {detail}")
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError as e:

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
-from videoqa.claude_runner import Runner, extract_json
+from videoqa.claude_runner import ClaudeError, Runner, extract_json
+
+_HEX_RE = re.compile(r"^#?[0-9A-Fa-f]{6}$")
 
 PDF_NAME = "guia_de_marca.pdf"
 BRAND_NAME = "brand.json"
@@ -49,13 +52,33 @@ def brand_is_stale(config_dir: Path) -> bool:
     return pdf.stat().st_mtime > brand.stat().st_mtime
 
 
+def _coerced_list(value) -> list:
+    return list(value) if isinstance(value, list) else []
+
+
 def build_brand(config_dir: Path, runner: Runner) -> dict:
     pdf = config_dir / PDF_NAME
     data = extract_json(runner(BRAND_PROMPT, config_dir))
+    if not isinstance(data, dict):
+        raise ClaudeError(
+            f"brand.json: respuesta de Claude con formato inesperado: "
+            f"se esperaba un objeto JSON y se obtuvo {type(data).__name__}"
+        )
     brand = dict(EMPTY_BRAND)
-    brand["palette"] = [{"name": str(p.get("name", "")), "hex": str(p["hex"]).upper()} for p in data.get("palette", []) if p.get("hex")]
-    brand["fonts"] = [str(f) for f in data.get("fonts", [])]
-    brand["rules"] = [str(r) for r in data.get("rules", [])]
+
+    palette = []
+    for p in _coerced_list(data.get("palette", [])):
+        if not isinstance(p, dict):
+            continue
+        hex_value = p.get("hex")
+        if not isinstance(hex_value, str) or not _HEX_RE.match(hex_value):
+            continue
+        normalized = hex_value if hex_value.startswith("#") else f"#{hex_value}"
+        palette.append({"name": str(p.get("name", "")), "hex": normalized.upper()})
+    brand["palette"] = palette
+
+    brand["fonts"] = [str(f) for f in _coerced_list(data.get("fonts", []))]
+    brand["rules"] = [str(r) for r in _coerced_list(data.get("rules", []))]
     brand["logo_required"] = bool(data.get("logo_required", False))
     brand["source_pdf_sha256"] = _sha(pdf)
     (config_dir / BRAND_NAME).write_text(json.dumps(brand, ensure_ascii=False, indent=2))
@@ -64,8 +87,11 @@ def build_brand(config_dir: Path, runner: Runner) -> dict:
 
 def load_brand(config_dir: Path, runner: Runner) -> dict:
     pdf, brand = config_dir / PDF_NAME, config_dir / BRAND_NAME
+    if not pdf.exists():
+        return dict(EMPTY_BRAND)
     if brand_is_stale(config_dir):
         return build_brand(config_dir, runner)
-    if brand.exists():
+    try:
         return json.loads(brand.read_text())
-    return dict(EMPTY_BRAND)
+    except json.JSONDecodeError:
+        return build_brand(config_dir, runner)

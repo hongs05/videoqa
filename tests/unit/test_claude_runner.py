@@ -32,3 +32,12 @@ def test_run_claude_is_error_raises(monkeypatch, tmp_path):
         cmd, 0, stdout=json.dumps({"is_error": True, "result": "rate limit"}), stderr=""))
     with pytest.raises(ClaudeError):
         run_claude("p", cwd=tmp_path)
+
+
+# --- Fix round 1: hardening test ---
+
+def test_run_claude_nonzero_with_empty_stderr_surfaces_stdout_result(monkeypatch, tmp_path):
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(
+        cmd, 1, stdout=json.dumps({"is_error": True, "result": "Failed to authenticate"}), stderr=""))
+    with pytest.raises(ClaudeError, match="Failed to authenticate"):
+        run_claude("p", cwd=tmp_path)
