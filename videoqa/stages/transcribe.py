@@ -5,7 +5,8 @@ from pathlib import Path
 
 from videoqa.job import Job
 
-EMPTY = {"language": "es", "text": "", "segments": []}
+def empty_transcript() -> dict:
+    return {"language": "es", "text": "", "segments": []}
 
 
 def extract_audio(video: Path, wav: Path) -> None:
@@ -24,7 +25,7 @@ def normalize(raw: dict) -> dict:
 
 def transcribe(job: Job, has_audio: bool, model: str) -> dict:
     if not has_audio:
-        return dict(EMPTY)
+        return empty_transcript()
     wav = job.path("audio.wav")
     extract_audio(job.video, wav)
     import mlx_whisper  # import tardío: carga MLX solo cuando hace falta

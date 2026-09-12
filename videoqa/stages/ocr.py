@@ -10,8 +10,32 @@ _WS = re.compile(r"\s+")
 TEXT_SIM_MIN = 0.75  # tolera pequeñas variaciones de OCR entre frames consecutivos
 
 
+_DIGITS = re.compile(r"\d+")
+
+
 def norm_text(s: str) -> str:
     return _WS.sub(" ", s).strip().lower()
+
+
+def _digit_runs(s: str) -> list[str]:
+    return _DIGITS.findall(s)
+
+
+def _texts_compatible(a: str, b: str) -> bool:
+    """True si los textos pueden fusionarse por similitud.
+
+    Compara las secuencias de dígitos de ambos textos solo cuando AMBOS
+    contienen al menos un dígito; si difieren (p.ej. "20%" vs "25%",
+    "martes 12" vs "martes 13"), nunca se fusionan aunque el ratio de
+    similitud sea alto. Si solo uno de los dos tiene dígitos (p.ej. ruido
+    de OCR como "0ferta" contra "Oferta"), se ignora esta guarda y se
+    recurre solo a la similitud de texto, ya que ahí el dígito es en
+    realidad una letra mal reconocida.
+    """
+    da, db = _digit_runs(a), _digit_runs(b)
+    if da and db and da != db:
+        return False
+    return True
 
 
 def iou(a: list[float], b: list[float]) -> float:
@@ -43,6 +67,7 @@ def dedupe(raw: list[dict], period: float, gap: float = 1.5, iou_min: float = 0.
             match = None
             for a in apps:
                 if (frame["t"] - a["_last_t"] <= gap and iou(a["bbox"], it["bbox"]) >= iou_min
+                        and _texts_compatible(a["_key"], key)
                         and SequenceMatcher(None, a["_key"], key).ratio() >= TEXT_SIM_MIN):
                     match = a
                     break

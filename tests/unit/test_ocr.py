@@ -26,6 +26,18 @@ def test_dedupe_keeps_highest_confidence_text():
     raw = [item("0ferta", 1.0, conf=0.5), item("Oferta", 1.5, conf=0.95)]
     assert dedupe(raw, period=0.5)[0]["text"] == "Oferta"
 
+def test_dedupe_does_not_merge_differing_digits_in_percentage():
+    raw = [item("descuento del 20%", 1.0), item("descuento del 25%", 1.5)]
+    assert len(dedupe(raw, period=0.5)) == 2
+
+def test_dedupe_does_not_merge_differing_digits_in_date():
+    raw = [item("martes 12", 1.0), item("martes 13", 1.5)]
+    assert len(dedupe(raw, period=0.5)) == 2
+
+def test_dedupe_does_not_merge_differing_digits_in_step_counter():
+    raw = [item("paso 2 de 5", 1.0), item("paso 3 de 5", 1.5)]
+    assert len(dedupe(raw, period=0.5)) == 2
+
 def test_ocr_frame_reads_fixture_text(fixture_videos, tmp_path):
     job = Job(fixture_videos["clean"], tmp_path)
     fr = extract_frames(job, scene_cuts=[], fps=2)
