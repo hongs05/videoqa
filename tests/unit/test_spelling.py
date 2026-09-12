@@ -1,10 +1,7 @@
-from spellchecker import SpellChecker
-from videoqa.checks.spelling import check_spelling, load_glossary, unknown_words
+from videoqa.checks.spelling import MacSpellChecker, check_spelling, load_glossary, unknown_words
 from videoqa.config import load_rules
 
-CHECKER = SpellChecker(language="es")
-# Ensure common Spanish words are recognized (pyspellchecker's Spanish dictionary is incomplete)
-CHECKER.word_frequency.load_words(['aprovecha', 'quieres'])
+CHECKER = MacSpellChecker()
 
 def app(text, t=1.0):
     return {"text": text, "bbox": [0.1, 0.4, 0.8, 0.1], "t_start": t, "t_end": t + 2,
@@ -33,3 +30,7 @@ def test_punctuation_warnings():
     checks = sorted(f.check for f in fs)
     assert checks == ["spelling_punctuation", "spelling_punctuation"]
     assert all(f.severity == "warning" for f in fs)
+
+def test_unknown_words_recognizes_common_spanish_words():
+    assert unknown_words("Quieres ahorrar esta semana", CHECKER, set()) == []
+    assert CHECKER.correction("Aprobecha") == "Aprovecha"

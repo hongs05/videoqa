@@ -7,7 +7,6 @@ dependencies = [
     "pyyaml>=6.0",
     "numpy>=1.26",
     "pillow>=10.0",
-    "pyspellchecker>=0.8",
     "mlx-whisper>=0.4",
     "ocrmac>=1.0",
     "gspread>=6.0",
