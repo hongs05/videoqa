@@ -41,3 +41,11 @@ def test_run_claude_nonzero_with_empty_stderr_surfaces_stdout_result(monkeypatch
         cmd, 1, stdout=json.dumps({"is_error": True, "result": "Failed to authenticate"}), stderr=""))
     with pytest.raises(ClaudeError, match="Failed to authenticate"):
         run_claude("p", cwd=tmp_path)
+
+
+def test_run_claude_missing_binary_raises_claude_error(monkeypatch, tmp_path):
+    def fake_run(cmd, **kw):
+        raise FileNotFoundError(2, "No such file or directory")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(ClaudeError, match="no se pudo ejecutar"):
+        run_claude("p", cwd=tmp_path, claude_bin="claude")

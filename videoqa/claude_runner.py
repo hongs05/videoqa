@@ -22,6 +22,8 @@ def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int 
         proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout)
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"claude -p superó {timeout}s") from e
+    except OSError as e:  # p.ej. FileNotFoundError si el binario `claude` no existe
+        raise ClaudeError(f"no se pudo ejecutar {claude_bin}: {e}") from e
     if proc.returncode != 0:
         detail = ""
         try:

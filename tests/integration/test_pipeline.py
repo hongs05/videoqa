@@ -2,7 +2,6 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-import pytest
 from videoqa.config import Settings, load_rules
 from videoqa.pipeline import process_video
 from videoqa.sheet import HEADERS, SheetClient, SheetWriter
@@ -15,7 +14,7 @@ GOOD_VERDICT = json.dumps({"findings": [], "confirmed_code_findings": [], "dismi
 class FakeWS:
     def __init__(self): self.rows = []
     def get_all_values(self): return [list(r) for r in self.rows]
-    def update(self, values, range_name):
+    def update(self, values, range_name=None):
         # videoqa.sheet.SheetClient llama gspread con la firma moderna
         # ws.update(values, range_name=...) en vez de la posicional antigua.
         r = int(range_name.split(":")[0].lstrip("A")); self.rows[r - 1] = list(values[0])
@@ -66,9 +65,13 @@ def test_spelling_color_fixture_is_rejected(tmp_path, fixture_videos, monkeypatc
 def test_clean_fixture_is_approved(tmp_path, fixture_videos, monkeypatch):
     stub_transcript(monkeypatch)
     s, video = make_env(tmp_path, fixture_videos, "clean")
-    res = process_video(video, s, load_rules(), runner=lambda p, cwd: GOOD_VERDICT)
+    ws = FakeWS()
+    res = process_video(video, s, load_rules(), runner=lambda p, cwd: GOOD_VERDICT,
+                        sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "pending.json"))
     assert res.status == "approved", [f.title for f in res.findings]
     assert (s.aprobado / "clean" / "clean.mp4").exists()
+    assert ws.rows[-1][2] == "🟢"
+    assert ws.rows[-1][5].startswith("03_Aprobado/") and ws.rows[-1][6].startswith("03_Aprobado/")
 
 def test_black_screen_fixture_is_rejected_by_technical_check(tmp_path, fixture_videos, monkeypatch):
     stub_transcript(monkeypatch)
@@ -92,8 +95,6 @@ def test_judge_failure_yields_error_status_in_con_errores(tmp_path, fixture_vide
     stub_transcript(monkeypatch)
     s, video = make_env(tmp_path, fixture_videos, "clean")
     ws = FakeWS()
-    def runner(p, cwd):
-        raise RuntimeError("no debería llegar aquí sin ClaudeError")  # pragma: no cover
     from videoqa.claude_runner import ClaudeError
     def failing(p, cwd):
         raise ClaudeError("rate limit")
@@ -101,8 +102,22 @@ def test_judge_failure_yields_error_status_in_con_errores(tmp_path, fixture_vide
     assert res.status == "error" and "judge_unavailable" in {f.check for f in res.findings}
     assert (s.con_errores / "clean" / "reporte.md").read_text().startswith("# ❌")
     assert ws.rows[1][2] == "❌ Error"
+    assert res.dest is not None and res.error
 
-def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos, monkeypatch):
+def test_judge_raising_plain_exception_still_degrades_gracefully(tmp_path, fixture_videos, monkeypatch):
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "clean")
+    ws = FakeWS()
+    def exploding(p, cwd):
+        raise RuntimeError("claude explotó")
+    res = process_video(video, s, load_rules(), runner=exploding,
+                        sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
+    assert res.status == "error"
+    assert "judge_unavailable" in {f.check for f in res.findings}
+    assert (s.con_errores / "clean" / "clean.mp4").exists()
+    assert ws.rows[-1][2] == "❌ Error"
+
+def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos):
     s, _ = make_env(tmp_path, fixture_videos, "clean")
     bad = s.entrada / "roto.mp4"; bad.write_bytes(b"no es un video")
     ws = FakeWS()
