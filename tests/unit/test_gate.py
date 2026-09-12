@@ -1,3 +1,7 @@
+import shutil
+
+import pytest
+
 from videoqa.config import Settings
 from videoqa.findings import Finding
 from videoqa.gate import decide, deliver
@@ -46,3 +50,36 @@ def test_deliver_overwrites_existing_destination(tmp_path):
     old = s.aprobado / "promo"; old.mkdir(parents=True); (old / "viejo.txt").write_text("x")
     deliver(job, s, "approved")
     assert not (old / "viejo.txt").exists() and (old / "promo.mp4").exists()
+
+
+def test_deliver_rejects_unsafe_name_without_deleting_anything(tmp_path):
+    """Un video llamado `...mp4` tiene stem `..`: `03_Aprobado/..` es la raíz de Drive."""
+    drive = tmp_path / "drive"
+    s = Settings(drive_root=drive, jobs_dir=tmp_path / "jobs")
+    s.entrada.mkdir(parents=True)
+    s.aprobado.mkdir(parents=True)
+    s.con_errores.mkdir(parents=True)
+    canary = s.con_errores / "otro_video"; canary.mkdir(); (canary / "reporte.md").write_text("no borrar")
+    video = s.entrada / "...mp4"; video.write_bytes(b"video")
+    job = Job(video, s.jobs_dir)
+    assert job.name == ".."
+
+    with pytest.raises(ValueError, match="inseguro"):
+        deliver(job, s, "approved")
+
+    assert drive.exists() and s.entrada.exists() and s.aprobado.exists()
+    assert (canary / "reporte.md").read_text() == "no borrar"
+    assert video.exists()
+
+
+def test_deliver_leaves_video_in_entrada_when_artifact_copy_fails(tmp_path, monkeypatch):
+    s, job, video = setup(tmp_path)
+
+    def boom(src, dst, **kw):
+        raise OSError("disco lleno")
+
+    monkeypatch.setattr(shutil, "copy2", boom)
+    with pytest.raises(OSError):
+        deliver(job, s, "approved")
+    assert video.exists()
+    assert not (s.aprobado / "promo" / "promo.mp4").exists()

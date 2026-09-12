@@ -7,6 +7,12 @@ from videoqa.findings import Finding
 
 WORD_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+")
 
+NSNOTFOUND = 0x7FFFFFFFFFFFFFFF
+
+# Minúscula tras punto (o ? / !) seguido de espacio. El lookbehind de dígito evita
+# marcar decimales ("3.5 euros") y otras cifras con punto.
+_LOWER_AFTER_DOT_RE = re.compile(r"(?<!\d)[.?!]\s+[a-záéíóúüñ]")
+
 
 class MacSpellChecker:
     """Corrector ortográfico nativo de macOS (NSSpellChecker) en español."""
@@ -21,9 +27,13 @@ class MacSpellChecker:
         self._lang = language
 
     def is_known(self, word: str) -> bool:
-        res = self._sc.checkSpellingOfString_startingAt_(word, 0)
+        # API con idioma explícito: `checkSpellingOfString:startingAt:` usa el idioma del
+        # panel compartido (que otra app puede haber cambiado) y en la práctica devolvía
+        # "conocido" para casi todo. Con esta variante el idioma va en la llamada.
+        res = self._sc.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount_(
+            word, 0, self._lang, False, 0, None)
         r = res[0] if isinstance(res, tuple) else res
-        return getattr(r, "location", r) == 0x7FFFFFFFFFFFFFFF  # NSNotFound
+        return getattr(r, "location", r) == NSNOTFOUND  # NSNotFound = sin error = palabra conocida
 
     def unknown(self, words) -> set[str]:
         return {w for w in words if not self.is_known(w)}
@@ -46,9 +56,13 @@ def load_glossary(path: Path) -> set[str]:
 
 
 def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
+    # Nota: NO se saltan las palabras en MAYÚSCULAS. Los rótulos de reels están casi
+    # siempre en caps, así que saltarlas dejaba el check sin nada que revisar. Las siglas
+    # habituales (IVA, CDMX, MXN) las reconoce el diccionario de macOS; las que no, van a
+    # `glosario.txt`.
     out = []
     for w in WORD_RE.findall(text):
-        if len(w) < 3 or w.isupper() or w.lower() in glossary:
+        if len(w) < 3 or w.lower() in glossary:
             continue
         if checker.unknown([w]):
             out.append(w)
@@ -63,6 +77,8 @@ def _punctuation_issues(text: str) -> list[str]:
         issues.append("falta el signo de apertura ¡")
     if "  " in text:
         issues.append("doble espacio")
+    if _LOWER_AFTER_DOT_RE.search(text):
+        issues.append("minúscula después de punto")
     return issues
 
 

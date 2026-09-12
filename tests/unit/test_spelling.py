@@ -19,6 +19,20 @@ def test_unknown_words_respects_glossary_caps_and_short():
     assert unknown_words("IVA de 21", CHECKER, set()) == []          # siglas y números
     assert unknown_words("Aprovecha la oferta", CHECKER, set()) == []
 
+def test_unknown_words_detects_all_caps_misspelling():
+    # Los rótulos de reels van en MAYÚSCULAS: saltarlas dejaba el check ciego.
+    assert unknown_words("APROBECHA LA OFERTA", CHECKER, set()) == ["APROBECHA"]
+
+def test_is_known_direct():
+    assert CHECKER.is_known("aprovecha") is True
+    assert CHECKER.is_known("quieres") is True
+    assert CHECKER.is_known("APROVECHA") is True
+    assert CHECKER.is_known("OFERTA") is True
+    assert CHECKER.is_known("IVA") is True          # sigla común
+    assert CHECKER.is_known("kasa") is False
+    assert CHECKER.is_known("aprobecha") is False
+    assert CHECKER.is_known("APROBECHA") is False
+
 def test_check_spelling_blocker_with_suggestion():
     fs = check_spelling([app("Aprobecha la oferta")], set(), load_rules(), checker=CHECKER)
     assert len(fs) == 1 and fs[0].severity == "blocker" and fs[0].type == "ortografia"
@@ -30,6 +44,15 @@ def test_punctuation_warnings():
     checks = sorted(f.check for f in fs)
     assert checks == ["spelling_punctuation", "spelling_punctuation"]
     assert all(f.severity == "warning" for f in fs)
+
+def test_lowercase_after_period_is_flagged():
+    fs = check_spelling([app("Hola. mundo")], set(), load_rules(), checker=CHECKER)
+    puncts = [f for f in fs if f.check == "spelling_punctuation"]
+    assert len(puncts) == 1 and "minúscula después de punto" in puncts[0].title
+
+def test_decimal_number_is_not_a_punctuation_issue():
+    fs = check_spelling([app("Precio 3.5 euros")], set(), load_rules(), checker=CHECKER)
+    assert [f for f in fs if f.check == "spelling_punctuation"] == []
 
 def test_unknown_words_recognizes_common_spanish_words():
     assert unknown_words("Quieres ahorrar esta semana", CHECKER, set()) == []
