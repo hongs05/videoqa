@@ -54,6 +54,21 @@ def _save_failed(path: Path, failed: dict[str, float]) -> None:
     path.write_text(json.dumps(failed))
 
 
+def _failed_key(video: Path) -> str:
+    """Clave de estado de reintento para `video`.
+
+    Incluye mtime y tamaño (no solo la ruta) para que volver a subir un archivo
+    con el mismo nombre pero contenido distinto (el editor corrige y resube tras
+    un fallo) cuente como un video nuevo y se procese de inmediato, en vez de
+    quedar bloqueado hasta `retry_after_s` por el fallo del archivo anterior.
+    """
+    try:
+        st = video.stat()
+        return f"{video}|{int(st.st_mtime)}|{st.st_size}"
+    except FileNotFoundError:
+        return str(video)
+
+
 def watch(settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None, poll_s: float = 10,
           once: bool = False, process=process_video, sleep: Callable[[float], None] = time.sleep,
           stable_wait_s: float = 30, retry_after_s: float = 600) -> None:
@@ -65,13 +80,22 @@ def watch(settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | 
     log.info("vigilando %s", settings.entrada)
     while True:
         for video in list_videos(settings.entrada):
-            key = str(video)
-            if key in failed and time.time() - failed[key] < retry_after_s:
-                continue
+            key = _failed_key(video)
+            if key in failed:
+                elapsed = time.time() - failed[key]
+                if elapsed < retry_after_s:
+                    log.info("%s falló hace %.0fs; se reintenta en %.0fs", video.name, elapsed, retry_after_s - elapsed)
+                    continue
             if stable_wait_s and not is_stable(video, wait_s=stable_wait_s, sleep=sleep):
                 log.info("%s aún sincronizando; se reintenta en el próximo ciclo", video.name)
                 continue
-            result = process(video, settings, rules, runner, sheet=sheet)
+            try:
+                result = process(video, settings, rules, runner, sheet=sheet)
+            except Exception:
+                log.exception("[%s] error inesperado procesando", video.name)
+                failed[key] = time.time()
+                _save_failed(state_path, failed)
+                continue
             if result.status == "error" and result.dest is None:
                 failed[key] = time.time()
             else:

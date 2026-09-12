@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from videoqa.config import Settings, load_settings, load_rules
+from videoqa.config import Settings, load_settings, load_rules, videoqa_home
 
 def test_load_settings_from_yaml(tmp_path):
     cfg = tmp_path / "config.yaml"
@@ -14,7 +14,15 @@ def test_load_settings_from_yaml(tmp_path):
     assert s.sheet_id == "abc"
     assert s.service_account_json is None
     assert s.claude_bin == "claude"
-    assert s.jobs_dir == Path.home() / ".videoqa" / "jobs"
+    assert s.jobs_dir == videoqa_home() / "jobs"
+
+
+def test_jobs_dir_default_honors_videoqa_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIDEOQA_HOME", str(tmp_path / "custom_home"))
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("drive_root: /tmp/drive\n")
+    s = load_settings(cfg)
+    assert s.jobs_dir == tmp_path / "custom_home" / "jobs"
 
 def test_load_settings_requires_drive_root(tmp_path):
     cfg = tmp_path / "config.yaml"

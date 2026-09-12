@@ -6,15 +6,29 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_CONFIG = Path.home() / ".videoqa" / "config.yaml"
 RULES_PATH = Path(__file__).resolve().parent.parent / "reglas.yaml"
 SKILL_PATH = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "revisor-video" / "SKILL.md"
+
+
+def videoqa_home() -> Path:
+    """Directorio base de estado/config de videoqa (por defecto ``~/.videoqa``).
+
+    Se resuelve en cada llamada (nunca se cachea en una constante de módulo) para
+    que ``VIDEOQA_HOME`` pueda fijarse en tiempo de ejecución -- en particular en
+    los tests, que así nunca tocan el ``~/.videoqa`` real del usuario que corre
+    la suite.
+    """
+    return Path(os.environ.get("VIDEOQA_HOME", Path.home() / ".videoqa")).expanduser()
+
+
+def default_config_path() -> Path:
+    return videoqa_home() / "config.yaml"
 
 
 @dataclass
 class Settings:
     drive_root: Path
-    jobs_dir: Path = field(default_factory=lambda: Path.home() / ".videoqa" / "jobs")
+    jobs_dir: Path = field(default_factory=lambda: videoqa_home() / "jobs")
     sheet_id: str | None = None
     service_account_json: Path | None = None
     claude_bin: str = "claude"
@@ -38,7 +52,7 @@ class Settings:
 
 
 def load_settings(path: Path | None = None) -> Settings:
-    path = path or Path(os.environ.get("VIDEOQA_CONFIG", DEFAULT_CONFIG))
+    path = path or Path(os.environ.get("VIDEOQA_CONFIG", default_config_path()))
     data = yaml.safe_load(path.read_text()) or {}
     if "drive_root" not in data:
         raise ValueError(f"{path}: falta la clave 'drive_root'")

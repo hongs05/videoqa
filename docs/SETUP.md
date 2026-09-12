@@ -54,8 +54,13 @@ La primera vez descarga el modelo de Whisper (~1.5 GB). El resultado queda en `0
 `03_Aprobado/` con `reporte.md`, `guion_real.md` y `evidencia/`.
 
 ## 5. Dejarlo corriendo solo (launchd)
+Antes de instalarlo como agente, conviene probar el watcher a mano una vez:
 ```bash
-sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoeditorpipeline|g" \
+uv run videoqa watch --once
+```
+Luego instala el agente:
+```bash
+sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoeditorpipeline|g" -e "s|__UV__|$(command -v uv)|g" \
   launchd/com.videoqa.watcher.plist > ~/Library/LaunchAgents/com.videoqa.watcher.plist
 launchctl load ~/Library/LaunchAgents/com.videoqa.watcher.plist
 ```

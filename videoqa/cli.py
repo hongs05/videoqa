@@ -11,20 +11,22 @@ import yaml
 
 from videoqa.brand import build_brand
 from videoqa.claude_runner import Runner, run_claude
-from videoqa.config import DEFAULT_CONFIG, Settings, load_rules, load_settings
+from videoqa.config import Settings, default_config_path, load_rules, load_settings, videoqa_home
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
 
-LOG_DIR = Path.home() / ".videoqa"
-
 
 def setup_logging() -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_dir = videoqa_home()
+    log_dir.mkdir(parents=True, exist_ok=True)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     root = logging.getLogger("videoqa")
     root.setLevel(logging.INFO)
-    fh = logging.handlers.RotatingFileHandler(LOG_DIR / "videoqa.log", maxBytes=5_000_000, backupCount=3)
+    for h in root.handlers[:]:
+        h.close()
+        root.removeHandler(h)
+    fh = logging.handlers.RotatingFileHandler(log_dir / "videoqa.log", maxBytes=5_000_000, backupCount=3)
     fh.setFormatter(fmt)
     sh = logging.StreamHandler(sys.stderr)
     sh.setFormatter(fmt)
@@ -44,7 +46,7 @@ def make_sheet(settings: Settings) -> SheetWriter:
 
 
 def cmd_init(args) -> int:
-    cfg_path = Path(os.environ.get("VIDEOQA_CONFIG", DEFAULT_CONFIG))
+    cfg_path = Path(os.environ.get("VIDEOQA_CONFIG", default_config_path()))
     drive = Path(args.drive_root).expanduser()
     data = {"drive_root": str(drive)}
     if args.sheet_id:
