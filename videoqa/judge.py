@@ -23,23 +23,61 @@ def select_frames(frames: list[dict], appearances: list[dict], code_findings: li
     by_file = {f["file"]: f["t"] for f in frames}
     chosen: list[str] = []
 
-    def add(file: str | None) -> None:
+    def add(file: str | None) -> bool:
         if file and file in by_file and file not in chosen and len(chosen) < max_frames:
             chosen.append(file)
+            return True
+        return False
 
-    for f in frames:
-        if f["kind"] == "scene":
-            add(f["file"])
-    for a in appearances:
-        add(a.get("frame"))
-    for fnd in code_findings:
-        add(fnd.frame)
+    # Cuota: hasta max_frames // 3 slots reservados para findings de código y apariciones OCR
+    # (findings primero), el resto de la budget para frames de escena. Los slots que sobran de
+    # un lado pasan al otro, y lo que quede se llena con frames "second" espaciados.
+    reserved = max_frames // 3
+    scene_cap = max_frames - reserved
+
+    priority_files = [fnd.frame for fnd in code_findings] + [a.get("frame") for a in appearances]
+    scene_files = [f["file"] for f in frames if f["kind"] == "scene"]
+
+    added_priority = 0
+    for file in priority_files:
+        if added_priority >= reserved or len(chosen) >= max_frames:
+            break
+        if add(file):
+            added_priority += 1
+
+    added_scene = 0
+    for file in scene_files:
+        if added_scene >= scene_cap or len(chosen) >= max_frames:
+            break
+        if add(file):
+            added_scene += 1
+
+    # Slots sobrantes: primero más frames prioritarios que no cupieron en la reserva, luego más
+    # frames de escena que no cupieron en su cupo.
+    if len(chosen) < max_frames:
+        for file in priority_files:
+            if len(chosen) >= max_frames:
+                break
+            add(file)
+    if len(chosen) < max_frames:
+        for file in scene_files:
+            if len(chosen) >= max_frames:
+                break
+            add(file)
+
     seconds = [f["file"] for f in frames if f["kind"] == "second" and f["file"] not in chosen]
     remaining = max_frames - len(chosen)
     if remaining > 0 and seconds:
-        step = max(1, len(seconds) // remaining)
-        for file in seconds[::step]:
-            add(file)
+        if remaining > 1:
+            idxs = [round(i * (len(seconds) - 1) / (remaining - 1)) for i in range(remaining)]
+        else:
+            idxs = [len(seconds) // 2]
+        seen_idx: set[int] = set()
+        for idx in idxs:
+            if idx in seen_idx:
+                continue
+            seen_idx.add(idx)
+            add(seconds[idx])
     return sorted(chosen, key=lambda f: by_file[f])
 
 
@@ -107,24 +145,50 @@ def parse_verdict(text: str) -> dict:
     if not isinstance(data.get("guion_real_md", ""), str):
         raise ValueError("'guion_real_md' debe ser texto")
     data.setdefault("guion_real_md", "")
-    data["confirmed_code_findings"] = [str(x) for x in data.get("confirmed_code_findings", []) or []]
+
+    confirmed = data.get("confirmed_code_findings", []) or []
+    if not isinstance(confirmed, list):
+        raise ValueError("'confirmed_code_findings' debe ser una lista")
+    data["confirmed_code_findings"] = [str(x) for x in confirmed]
+
+    dismissed_raw = data.get("dismissed_code_findings", []) or []
+    if not isinstance(dismissed_raw, list):
+        raise ValueError("'dismissed_code_findings' debe ser una lista")
     dismissed = []
-    for d in data.get("dismissed_code_findings", []) or []:
-        if isinstance(d, dict) and d.get("id"):
-            dismissed.append({"id": str(d["id"]), "reason": str(d.get("reason", ""))})
+    for d in dismissed_raw:
+        if not isinstance(d, dict):
+            log.warning("dismissed_code_findings: entrada descartada (no es objeto): %r", d)
+            continue
+        d_id, d_reason = d.get("id"), d.get("reason")
+        if not isinstance(d_id, str) or not d_id:
+            log.warning("dismissed_code_findings: entrada descartada (id inválido): %r", d)
+            continue
+        if not isinstance(d_reason, str) or not d_reason:
+            log.warning("dismissed_code_findings: entrada descartada (sin reason): %r", d)
+            continue
+        dismissed.append({"id": d_id, "reason": d_reason})
     data["dismissed_code_findings"] = dismissed
     return data
 
 
 def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
               code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
-              skill_path: Path = SKILL_PATH) -> dict:
-    manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules)
-    duration = max([f["t"] for f in frames], default=0.0)
-    prompt = build_prompt(skill_path.read_text(encoding="utf-8"), manifest, duration)
+              skill_path: Path = SKILL_PATH, duration: float | None = None) -> dict:
+    try:
+        manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules)
+        skill_text = skill_path.read_text(encoding="utf-8")
+    except (OSError, ValueError, Exception) as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
+        raise JudgeError(f"no se pudieron preparar las entradas del juez: {e}") from e
+    if duration is None:
+        duration = max([f["t"] for f in frames], default=0.0)
+    base_prompt = build_prompt(skill_text, manifest, duration)
     last: Exception | None = None
     verdict = None
     for attempt in (1, 2):
+        prompt = base_prompt
+        if attempt == 2 and last is not None:
+            prompt += (f"\n\nTu respuesta anterior no fue válida ({last}). "
+                       "Responde ÚNICAMENTE con el JSON del veredicto, sin texto adicional.")
         try:
             verdict = parse_verdict(runner(prompt, job.dir))
             break
@@ -133,12 +197,26 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
             log.warning("[%s] juez intento %d falló: %s", job.name, attempt, e)
     if verdict is None:
         raise JudgeError(f"juez falló tras 2 intentos: {last}")
+
+    valid_frames = {mf["file"] for mf in manifest["frames"]}
     findings = []
     for i, f in enumerate(verdict["findings"]):
+        frame = f.get("frame") or None
+        if frame is not None and frame not in valid_frames and not (frame.startswith("frames/") and job.path(frame).exists()):
+            log.warning("[%s] juez: frame inválido descartado: %s", job.name, frame)
+            frame = None
         findings.append(Finding(id=f"claude-{i}", type=f["type"], severity=f["severity"], t_start=float(f["t_start"]),
                                 t_end=float(f["t_end"]), title=f["title"], detail=f["detail"],
-                                suggestion=str(f.get("suggestion", "")), frame=f.get("frame") or None,
+                                suggestion=str(f.get("suggestion", "")), frame=frame,
                                 bbox=None, source="claude", check=f["type"]))
     job.path("findings_claude.json").write_text(json.dumps([f.to_dict() for f in findings], ensure_ascii=False, indent=2))
     job.path("guion_real.md").write_text(verdict["guion_real_md"], encoding="utf-8")
-    return {"findings": findings, "dismissed": verdict["dismissed_code_findings"], "guion_real_md": verdict["guion_real_md"]}
+
+    known_ids = {fnd.id for fnd in code_findings}
+    dismissed = []
+    for d in verdict["dismissed_code_findings"]:
+        if d["id"] not in known_ids:
+            log.warning("[%s] juez: dismissal de id desconocido descartado: %s", job.name, d["id"])
+            continue
+        dismissed.append(d)
+    return {"findings": findings, "dismissed": dismissed, "guion_real_md": verdict["guion_real_md"]}

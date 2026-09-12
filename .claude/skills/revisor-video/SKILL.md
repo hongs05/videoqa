@@ -54,8 +54,8 @@ Responde ÚNICAMENTE con un JSON válido (sin texto antes ni después):
 {
   "findings": [
     {
-      "type": "ortografia | marca | inconsistencia | blooper | tecnico",
-      "severity": "blocker | warning | info",
+      "type": "inconsistencia",
+      "severity": "blocker",
       "t_start": 12.0,
       "t_end": 12.8,
       "title": "Frase corta y concreta",
@@ -69,6 +69,10 @@ Responde ÚNICAMENTE con un JSON válido (sin texto antes ni después):
   "guion_real_md": "## Escena 1 [0:00]\n..."
 }
 ```
+
+`type` es uno de: `ortografia`, `marca`, `inconsistencia`, `blooper`, `tecnico`.
+`severity` es una de: `blocker`, `warning`, `info`.
+`suggestion` y `frame` son opcionales; `frame` puede ser `null` si ningún frame lo evidencia.
 
 Reglas del JSON: `t_start`/`t_end` en segundos (float); `frame` solo si un frame lo evidencia,
 si no `null`; no repitas hallazgos que ya están en `findings_code.json`.
