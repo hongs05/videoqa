@@ -22,3 +22,36 @@ def test_near_palette_color_passes():
 def test_missing_color_or_palette_is_skipped():
     assert check_brand_colors([app("x", None)], BRAND, load_rules()) == []
     assert check_brand_colors([app("x", "#FF0000")], {"palette": []}, load_rules()) == []
+
+
+PAL2 = {"palette": [{"name": "Blanco", "hex": "#FFFFFF"}, {"name": "Negro", "hex": "#1A1A1A"}]}
+
+
+def test_outlined_text_passes_when_any_candidate_is_in_palette():
+    """Relleno blanco + contorno: basta con que UNA de las tintas esté en paleta."""
+    a = app("¡Era mi almuerzo!", "#847C6E")
+    a["color_candidates"] = ["#847C6E", "#FFFFFF"]
+    assert check_brand_colors([a], PAL2, load_rules()) == []
+
+
+def test_all_candidates_off_palette_is_still_a_blocker():
+    a = app("¡Era mi almuerzo!", "#FF3B30")
+    a["color_candidates"] = ["#FF3B30"]
+    fs = check_brand_colors([a], PAL2, load_rules())
+    assert len(fs) == 1 and fs[0].severity == "blocker"
+    assert "#FF3B30" in fs[0].detail
+
+
+def test_detail_lists_every_candidate():
+    a = app("x", "#FF3B30")
+    a["color_candidates"] = ["#FF3B30", "#00A000"]
+    fs = check_brand_colors([a], PAL2, load_rules())
+    assert "#FF3B30" in fs[0].detail and "#00A000" in fs[0].detail
+
+
+def test_low_confidence_appearance_is_skipped():
+    """'nka' (escudo bordado leído por el OCR con conf 0.3) no es un rótulo."""
+    a = app("nka", "#FF3B30"); a["conf"] = 0.3
+    assert check_brand_colors([a], BRAND, load_rules()) == []
+    b = app("nka", "#FF3B30"); b["conf"] = 0.9
+    assert len(check_brand_colors([b], BRAND, load_rules())) == 1

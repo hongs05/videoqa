@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -42,7 +43,11 @@ def _slug_t(sec: float) -> str:
 
 def write_evidence(job: Job, findings: list[Finding]) -> dict[str, str]:
     out = job.path("evidencia")
-    out.mkdir(exist_ok=True)
+    # Se recrea desde cero: en un reintento el job dir se conserva, y las evidencias
+    # de la corrida anterior (numeradas 01..NN) sobrevivían y acababan copiadas al
+    # destino junto a las nuevas, mostrando findings ya corregidos.
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
     evidence: dict[str, str] = {}
     n = 0
     for f in sort_findings(findings):

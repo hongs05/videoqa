@@ -22,6 +22,7 @@ thresholds:
   freeze_min_s: 0.5
   silence_min_s: 2.0
   edge_margin_s: 0.5        # ignorar negro/silencio en los primeros/últimos N s
+  ocr_min_conf: 0.5         # confianza OCR mínima para checks de ortografía/color
   occluded_bottom: 0.80     # y+h por encima de esto = tapado por UI de TikTok/Reels
   occluded_right: 0.85      # x+w por encima de esto = tapado por iconos laterales
   aspect_tolerance: 0.02

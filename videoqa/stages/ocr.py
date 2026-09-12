@@ -82,7 +82,11 @@ def dedupe(raw: list[dict], period: float, gap: float = 1.5, iou_min: float = 0.
                     match["text"], match["_conf"], match["_key"] = it["text"], it["conf"], key
     out = []
     for a in apps:
-        out.append({"text": a["text"], "bbox": a["bbox"], "t_start": a["t_start"],
+        # `conf` = confianza MÁXIMA vista para esta aparición. Se expone (antes se
+        # descartaba con el resto de campos `_`) porque los checks de ortografía y
+        # color usan un umbral mínimo: el OCR lee texturas y bordados de la ropa con
+        # confianza muy baja y esos artefactos generaban bloqueantes falsos.
+        out.append({"text": a["text"], "conf": a["_conf"], "bbox": a["bbox"], "t_start": a["t_start"],
                     "t_end": round(a["_last_t"] + period, 3), "frame": a["frame"], "frames": a["frames"]})
     return out
 

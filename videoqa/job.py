@@ -10,6 +10,20 @@ from typing import Callable
 
 log = logging.getLogger("videoqa")
 
+_UNSAFE_NAMES = {"", ".", ".."}
+_SEPARATORS = {"/", os.sep, os.altsep} - {None}
+
+
+def check_safe_stem(stem: str, video_name: str) -> None:
+    """El *stem* del video se usa como nombre de carpeta (job dir y destino en Drive).
+
+    Un video llamado ``...mp4`` tiene stem ``..``, y ``base / ".."`` es la carpeta
+    padre: `reset()` o `deliver()` sobre ella borrarían el árbol entero. Se valida
+    antes de calcular ninguna ruta o crear ningún directorio.
+    """
+    if stem in _UNSAFE_NAMES or any(sep in stem for sep in _SEPARATORS):
+        raise ValueError(f"nombre de video inseguro: {video_name!r}")
+
 
 class Job:
     """Directorio de trabajo de un video con etapas cacheadas en JSON."""
@@ -17,6 +31,7 @@ class Job:
     def __init__(self, video: Path, jobs_root: Path):
         self.video = Path(video)
         self.name = self.video.stem
+        check_safe_stem(self.name, self.video.name)
         self.dir = Path(jobs_root) / self.name
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.json"

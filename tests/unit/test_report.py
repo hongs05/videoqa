@@ -79,6 +79,20 @@ def test_write_evidence_skips_malformed_bbox_without_raising(tmp_path):
     assert job.path(ev["good"]).exists()
 
 
+def test_write_evidence_clears_previous_run(tmp_path):
+    """Reintento del mismo video: las evidencias viejas no deben sobrevivir."""
+    video = tmp_path / "v.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    (job.dir / "frames").mkdir()
+    (job.dir / "evidencia").mkdir()
+    stale = job.path("evidencia/99_old.jpg"); stale.write_bytes(b"viejo")
+    Image.new("RGB", (108, 192), (0, 0, 0)).save(job.path("frames/sec_0025.jpg"))
+    ev = write_evidence(job, [fnd("b", "blocker", 12, frame="frames/sec_0025.jpg", bbox=[0.1, 0.4, 0.8, 0.1])])
+    assert not stale.exists()
+    assert sorted(p.name for p in job.path("evidencia").iterdir()) == ["01_0m12s.jpg"]
+    assert ev == {"b": "evidencia/01_0m12s.jpg"}
+
+
 def test_build_report_writes_file(tmp_path):
     video = tmp_path / "v.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")

@@ -86,8 +86,14 @@ def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, che
     if checker is None:
         checker = MacSpellChecker()
     sev = rules["severities"]
+    min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
     out = []
     for i, a in enumerate(appearances):
+        # El OCR también lee texturas, bordados y logos del vestuario con confianza
+        # baja ("nka" de un escudo escolar). Revisarlos ortográficamente producía
+        # bloqueantes falsos; los subtítulos reales llegan con confianza ~1.0.
+        if float(a.get("conf", 1.0)) < min_conf:
+            continue
         text = a["text"]
         bad = unknown_words(text, checker, glossary)
         if bad:

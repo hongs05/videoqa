@@ -26,6 +26,12 @@ def test_dedupe_keeps_highest_confidence_text():
     raw = [item("0ferta", 1.0, conf=0.5), item("Oferta", 1.5, conf=0.95)]
     assert dedupe(raw, period=0.5)[0]["text"] == "Oferta"
 
+def test_dedupe_exposes_max_confidence():
+    """`conf` la usan los checks de ortografía/color para descartar artefactos de OCR."""
+    raw = [item("0ferta", 1.0, conf=0.5), item("Oferta", 1.5, conf=0.95)]
+    assert dedupe(raw, period=0.5)[0]["conf"] == 0.95
+    assert dedupe([item("nka", 3.0, conf=0.3)], period=0.5)[0]["conf"] == 0.3
+
 def test_dedupe_does_not_merge_differing_digits_in_percentage():
     raw = [item("descuento del 20%", 1.0), item("descuento del 25%", 1.5)]
     assert len(dedupe(raw, period=0.5)) == 2

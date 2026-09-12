@@ -14,6 +14,14 @@ def test_occluded_bottom_and_right():
     fs = check_occluded([app(bbox=(0.1, 0.85, 0.5, 0.1)), app(bbox=(0.8, 0.4, 0.15, 0.1)), app()], R)
     assert len(fs) == 2 and all(f.check == "text_occluded" for f in fs)
 
+def test_occluded_is_skipped_on_horizontal_video():
+    """La zona segura describe la UI del feed vertical; en 16:9 no aplica."""
+    assert check_occluded([app(bbox=(0.1, 0.85, 0.5, 0.1)), app(bbox=(0.8, 0.4, 0.15, 0.1))], R, vertical=False) == []
+
+def test_check_timing_drops_occlusion_on_horizontal_video():
+    fs = check_timing([app(t0=4.0, t1=4.5, bbox=(0.1, 0.9, 0.5, 0.1))], [], R, vertical=False)
+    assert [f.check for f in fs] == ["text_visible_short"]
+
 def test_best_segment_jaccard():
     segs = [{"start": 0.0, "end": 2.0, "text": "Hola a todos"}, {"start": 2.0, "end": 5.0, "text": "aprovecha la oferta de verano"}]
     seg, score = best_segment("Oferta de verano", segs)

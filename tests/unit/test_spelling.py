@@ -54,6 +54,23 @@ def test_decimal_number_is_not_a_punctuation_issue():
     fs = check_spelling([app("Precio 3.5 euros")], set(), load_rules(), checker=CHECKER)
     assert [f for f in fs if f.check == "spelling_punctuation"] == []
 
+def test_low_confidence_appearance_is_not_spellchecked():
+    """El OCR lee bordados del vestuario ('nka', conf 0.3): no son texto del video."""
+    a = app("nka"); a["conf"] = 0.3
+    assert check_spelling([a], set(), load_rules(), checker=CHECKER) == []
+
+
+def test_high_confidence_appearance_is_spellchecked():
+    a = app("nka"); a["conf"] = 0.9
+    fs = check_spelling([a], set(), load_rules(), checker=CHECKER)
+    assert len(fs) == 1 and fs[0].check == "spelling_unknown_word"
+
+
+def test_appearance_without_conf_is_spellchecked():
+    fs = check_spelling([app("Aprobecha la oferta")], set(), load_rules(), checker=CHECKER)
+    assert [f.check for f in fs] == ["spelling_unknown_word"]
+
+
 def test_unknown_words_recognizes_common_spanish_words():
     assert unknown_words("Quieres ahorrar esta semana", CHECKER, set()) == []
     assert CHECKER.correction("Aprobecha") == "Aprovecha"

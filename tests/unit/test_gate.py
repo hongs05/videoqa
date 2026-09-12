@@ -61,7 +61,10 @@ def test_deliver_rejects_unsafe_name_without_deleting_anything(tmp_path):
     s.con_errores.mkdir(parents=True)
     canary = s.con_errores / "otro_video"; canary.mkdir(); (canary / "reporte.md").write_text("no borrar")
     video = s.entrada / "...mp4"; video.write_bytes(b"video")
-    job = Job(video, s.jobs_dir)
+    # `Job` ya rechaza el stem inseguro (ver test_job.py); aquí se comprueba que
+    # `deliver` conserva su propia guarda aunque el Job llegue por otra vía.
+    job = Job(s.entrada / "seguro.mp4", s.jobs_dir)
+    job.video, job.name = video, video.stem
     assert job.name == ".."
 
     with pytest.raises(ValueError, match="inseguro"):

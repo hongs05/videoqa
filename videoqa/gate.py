@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
 from videoqa.config import Settings
 from videoqa.findings import Finding
-from videoqa.job import Job
-
-_UNSAFE_NAMES = {"", ".", ".."}
-_SEPARATORS = {"/", os.sep, os.altsep} - {None}
+from videoqa.job import Job, check_safe_stem
 
 
 def decide(findings: list[Finding]) -> str:
@@ -17,15 +13,14 @@ def decide(findings: list[Finding]) -> str:
 
 
 def _check_safe_name(job: Job) -> None:
-    """`job.name` es el *stem* del video y se usa como nombre de carpeta destino.
+    """Guarda redundante con la de `Job.__init__`, a propósito.
 
-    Un video llamado ``...mp4`` tiene stem ``..``, y ``base / ".."`` es la raíz de
-    Drive: borrarla con rmtree destruiría `01_Entrada/`, `02_Con_errores/` y
-    `03_Aprobado/`. Se valida antes de tocar nada.
+    `job.name` es el *stem* del video y da nombre a la carpeta destino: `base / ".."`
+    es la raíz de Drive y borrarla con rmtree destruiría `01_Entrada/`,
+    `02_Con_errores/` y `03_Aprobado/`. Se revalida aquí por si el Job llegara
+    construido/mutado por otra vía.
     """
-    name = job.name
-    if name in _UNSAFE_NAMES or any(sep in name for sep in _SEPARATORS):
-        raise ValueError(f"nombre de video inseguro: {job.video.name!r}")
+    check_safe_stem(job.name, job.video.name)
 
 
 def deliver(job: Job, settings: Settings, status: str) -> Path:

@@ -43,7 +43,16 @@ def check_visible_short(appearances: list[dict], rules: dict) -> list[Finding]:
     return out
 
 
-def check_occluded(appearances: list[dict], rules: dict) -> list[Finding]:
+def check_occluded(appearances: list[dict], rules: dict, vertical: bool = True) -> list[Finding]:
+    """Zona segura de la UI de TikTok/Reels: solo aplica a video vertical.
+
+    Los umbrales (`occluded_bottom`, `occluded_right`) describen dónde el feed
+    vertical superpone caption, botones e iconos laterales. En un 16:9 no hay tal
+    UI encima, así que marcar los subtítulos de la banda inferior —su sitio
+    natural— era ruido puro.
+    """
+    if not vertical:
+        return []
     th = rules["thresholds"]
     sev = rules["severities"]["text_occluded"]
     out = []
@@ -77,5 +86,6 @@ def check_desync(appearances: list[dict], segments: list[dict], rules: dict) -> 
     return out
 
 
-def check_timing(appearances: list[dict], segments: list[dict], rules: dict) -> list[Finding]:
-    return check_visible_short(appearances, rules) + check_occluded(appearances, rules) + check_desync(appearances, segments, rules)
+def check_timing(appearances: list[dict], segments: list[dict], rules: dict, vertical: bool = True) -> list[Finding]:
+    return (check_visible_short(appearances, rules) + check_occluded(appearances, rules, vertical)
+            + check_desync(appearances, segments, rules))

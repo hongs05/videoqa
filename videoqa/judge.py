@@ -124,7 +124,7 @@ def build_prompt(skill_text: str, manifest: dict, duration: float) -> str:
             "Responde solo con el JSON del veredicto.")
 
 
-def parse_verdict(text: str) -> dict:
+def parse_verdict(text: str, require_guion: bool = True) -> dict:
     data = extract_json(text)
     findings = data.get("findings")
     if not isinstance(findings, list):
@@ -147,11 +147,15 @@ def parse_verdict(text: str) -> dict:
             log.warning("verdict finding: frame no es string, descartado: %r", f["frame"])
             f["frame"] = None
     # El guion real es un entregable del pipeline, no un campo opcional: si viene vacío el
-    # veredicto no sirve y debe reintentarse (o degradarse a "juez no disponible").
+    # veredicto no sirve y debe reintentarse (o degradarse a "juez no disponible"). La
+    # excepción es un video SIN diálogo: ahí no hay guion que transcribir y exigirlo
+    # condenaba el veredicto a fallar los 2 intentos.
+    if not require_guion and data.get("guion_real_md") is None:
+        data["guion_real_md"] = ""
     guion = data.get("guion_real_md")
     if not isinstance(guion, str):
         raise ValueError("'guion_real_md' debe ser texto")
-    if not guion.strip():
+    if require_guion and not guion.strip():
         raise ValueError("guion_real_md vacío")
 
     confirmed = data.get("confirmed_code_findings", []) or []
@@ -190,6 +194,13 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
     if duration is None:
         duration = max([f["t"] for f in frames], default=0.0)
     base_prompt = build_prompt(skill_text, manifest, duration)
+    # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.
+    require_guion = bool(transcript.get("segments"))
+    # Artefactos de la corrida anterior: si el juez falla ahora, un `guion_real.md` o
+    # `findings_claude.json` viejos seguirían en el job dir y se entregarían como si
+    # fueran de esta revisión.
+    for stale in ("guion_real.md", "findings_claude.json"):
+        job.path(stale).unlink(missing_ok=True)
     last: Exception | None = None
     verdict = None
     for attempt in (1, 2):
@@ -198,7 +209,7 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
             prompt += (f"\n\nTu respuesta anterior no fue válida ({last}). "
                        "Responde ÚNICAMENTE con el JSON del veredicto, sin texto adicional.")
         try:
-            verdict = parse_verdict(runner(prompt, job.dir))
+            verdict = parse_verdict(runner(prompt, job.dir), require_guion=require_guion)
             break
         except (ClaudeError, ValueError) as e:
             last = e

@@ -61,6 +61,9 @@ Genera `guion_real_md`: la transcripción limpia (sin muletillas "eh", "este", r
 puntuada y con tildes, dividida por escena usando `technical.scene_cuts`, cada bloque con su
 timestamp `[m:ss]`. Debe reflejar lo que el talento realmente dijo, no el guion original.
 
+Si el video no tiene diálogo, escribe `## Escena 1 [0:00]\n(sin diálogo)`; nunca devuelvas
+una cadena vacía.
+
 # Salida
 
 Responde ÚNICAMENTE con un JSON válido (sin texto antes ni después):

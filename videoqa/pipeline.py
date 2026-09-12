@@ -78,8 +78,12 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         glossary_text = glossary_path.read_text(encoding="utf-8") if glossary_path.exists() else ""
         glossary = load_glossary(glossary_path)
         apps = ocr["appearances"]
+        # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
+        # feed vertical; en 16:9 el check no aplica.
+        vertical = int(p["height"]) > int(p["width"])
         code_findings = (check_spelling(apps, glossary, rules) + check_brand_colors(apps, brand, rules)
-                         + check_timing(apps, transcript["segments"], rules) + check_technical(p, technical, rules))
+                         + check_timing(apps, transcript["segments"], rules, vertical=vertical)
+                         + check_technical(p, technical, rules))
         save_findings(job.path("findings_code.json"), code_findings)
     except Exception as e:  # noqa: BLE001 — fallo de brand/extracción: el video se queda en Entrada
         prefix = "brand: " if stage == "brand" else ""

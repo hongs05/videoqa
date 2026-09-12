@@ -121,6 +121,48 @@ def test_parse_verdict_missing_guion_is_invalid():
         parse_verdict(json.dumps({"findings": []}))
 
 
+def test_parse_verdict_empty_guion_allowed_without_dialogue():
+    """Video mudo: no hay guion que transcribir y exigirlo condenaba el veredicto."""
+    v = parse_verdict(json.dumps({"findings": [], "guion_real_md": ""}), require_guion=False)
+    assert v["guion_real_md"] == ""
+    assert parse_verdict(json.dumps({"findings": []}), require_guion=False)["guion_real_md"] == ""
+
+
+def test_run_judge_accepts_empty_guion_when_transcript_has_no_segments(tmp_path):
+    job = make_job(tmp_path)
+    verdict = json.dumps({"findings": [], "confirmed_code_findings": [], "dismissed_code_findings": [],
+                          "guion_real_md": ""})
+    out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
+                    runner=lambda p, c: verdict, skill_path=SKILL)
+    assert out["guion_real_md"] == ""
+
+
+def test_run_judge_rejects_empty_guion_when_transcript_has_segments(tmp_path):
+    job = make_job(tmp_path)
+    verdict = json.dumps({"findings": [], "confirmed_code_findings": [], "dismissed_code_findings": [],
+                          "guion_real_md": ""})
+    transcript = {"segments": [{"start": 0.0, "end": 2.0, "text": "hola"}]}
+    with pytest.raises(JudgeError):
+        run_judge(job, {}, "", transcript, {"appearances": []}, {}, [], frames_list(), R,
+                  runner=lambda p, c: verdict, skill_path=SKILL)
+
+
+def test_run_judge_clears_stale_artifacts_when_it_fails(tmp_path):
+    """Reintento: un guion/findings de la corrida anterior no debe sobrevivir al fallo."""
+    job = make_job(tmp_path)
+    job.path("guion_real.md").write_text("## Escena 1 [0:00]\nviejo")
+    job.path("findings_claude.json").write_text("[]")
+
+    def runner(p, c):
+        raise ClaudeError("rate limit")
+
+    with pytest.raises(JudgeError):
+        run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
+                  runner=runner, skill_path=SKILL)
+    assert not job.path("guion_real.md").exists()
+    assert not job.path("findings_claude.json").exists()
+
+
 def test_parse_verdict_dismissal_without_reason_is_dropped():
     bad = json.dumps({"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
                        "dismissed_code_findings": [{"id": "spell-1"}, {"id": "spell-2", "reason": ""}]})

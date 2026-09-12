@@ -77,6 +77,23 @@ def test_stage_marking_preserves_video_fingerprint(tmp_path):
     assert job.state()["stages"]["probe"]["status"] == "done"
 
 
+def test_unsafe_stem_rejected_before_creating_anything(tmp_path):
+    """`...mp4` tiene stem `..`: `jobs/..` es el padre de jobs_root y `reset()` lo borraría."""
+    jobs_root = tmp_path / "jobs"; jobs_root.mkdir()
+    video = tmp_path / "...mp4"; video.write_bytes(b"x")
+    with pytest.raises(ValueError, match="inseguro"):
+        Job(video, jobs_root)
+    assert list(jobs_root.iterdir()) == []
+
+
+def test_unsafe_stem_single_dot_rejected(tmp_path):
+    """`..mp4` tiene stem `.`: `jobs/.` es jobs_root mismo."""
+    jobs_root = tmp_path / "jobs"; jobs_root.mkdir()
+    with pytest.raises(ValueError, match="inseguro"):
+        Job(tmp_path / "..mp4", jobs_root)
+    assert list(jobs_root.iterdir()) == []
+
+
 def test_unserializable_result_marks_failed_and_writes_nothing(tmp_path):
     video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")
