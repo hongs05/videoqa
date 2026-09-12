@@ -30,7 +30,7 @@ thresholds:
 
 frames:
   fps: 2                    # frames por segundo para OCR
-  scene_threshold: 0.3      # sensibilidad de corte de escena (0-1)
+  scene_threshold: 0.2      # sensibilidad de corte de escena (0-1)
 
 claude:
   max_frames: 15
