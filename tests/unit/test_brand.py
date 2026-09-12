@@ -49,12 +49,23 @@ def test_pdf_newer_than_brand_triggers_rebuild(tmp_path):
 
 # --- Fix round 1: hardening tests ---
 
-def test_load_brand_without_pdf_ignores_stale_brand_json(tmp_path):
-    (tmp_path / "brand.json").write_text(json.dumps({
+def test_load_brand_without_pdf_uses_manual_brand_json(tmp_path):
+    """Sin PDF, un brand.json escrito a mano es una configuración válida y se respeta."""
+    manual = {
         "palette": [{"name": "Old", "hex": "#000000"}],
         "fonts": ["OldFont"], "rules": ["old"], "logo_required": True,
         "source_pdf_sha256": "deadbeef",
-    }))
+    }
+    (tmp_path / "brand.json").write_text(json.dumps(manual))
+
+    def runner_should_not_be_called(prompt, cwd):
+        raise AssertionError("runner should not be called when the PDF is missing")
+
+    assert load_brand(tmp_path, runner_should_not_be_called) == manual
+
+
+def test_load_brand_without_pdf_and_corrupt_brand_json_is_empty(tmp_path):
+    (tmp_path / "brand.json").write_text("{no es json")
 
     def runner_should_not_be_called(prompt, cwd):
         raise AssertionError("runner should not be called when the PDF is missing")

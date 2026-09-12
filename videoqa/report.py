@@ -21,6 +21,14 @@ CHECK_LABELS = {
 }
 STATUS = {"approved": ("🟢", "APROBADO"), "rejected": ("🔴", "NO APROBADO"), "error": ("❌", "ERROR")}
 
+# Etiqueta en español de cada `Finding.type`, para la línea `[m:ss] Tipo — título`.
+TYPE_LABELS = {"ortografia": "Ortografía", "marca": "Marca", "inconsistencia": "Inconsistencia",
+               "blooper": "Blooper", "tecnico": "Técnico"}
+
+# Checks que solo puede emitir el juez: si Claude no estuvo disponible, NO se pueden
+# declarar "pasados" (sería un visto bueno falso); van a "Pendientes de revisión".
+JUDGE_CHECKS = ("ortografia", "marca", "inconsistencia", "blooper", "tecnico")
+
 
 def fmt_t(sec: float) -> str:
     sec = max(0, int(round(sec)))
@@ -85,7 +93,8 @@ def render_report(video_name: str, probe: dict, findings: list[Finding], status:
         for f in items:
             n += 1
             span = f"[{fmt_t(f.t_start)}]" if f.t_end - f.t_start <= 1.0 else f"[{fmt_t(f.t_start)}–{fmt_t(f.t_end)}]"
-            lines.append(f"{n}. **{span} {f.title}**")
+            kind = TYPE_LABELS.get(f.type, f.type)
+            lines.append(f"{n}. **{span} {kind} — {f.title}**")
             lines.append(f"   {f.detail}")
             if f.suggestion:
                 lines.append(f"   Sugerencia: {f.suggestion}")
@@ -97,10 +106,19 @@ def render_report(video_name: str, probe: dict, findings: list[Finding], status:
     section("## ⚠️ Advertencias", "warning")
     section("## ℹ️ Información", "info")
     failed = {f.check for f in findings}
-    passed = [label for key, label in CHECK_LABELS.items() if key not in failed]
+    # Si el juez no corrió (o el pipeline terminó en error), sus checks no se revisaron:
+    # listarlos como "pasados" sería un visto bueno falso.
+    judge_down = any(f.check == "judge_unavailable" for f in findings) or status == "error"
+    pending = list(JUDGE_CHECKS) if judge_down else []
+    passed = [label for key, label in CHECK_LABELS.items()
+              if key not in failed and key not in pending]
     lines.append("## ✅ Checks pasados")
     lines.append(" · ".join(passed) if passed else "—")
     lines.append("")
+    if pending:
+        lines.append("## ⏳ Pendientes de revisión (Claude no disponible)")
+        lines.append(" · ".join(CHECK_LABELS.get(key, key) for key in pending))
+        lines.append("")
     return "\n".join(lines)
 
 

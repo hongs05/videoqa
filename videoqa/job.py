@@ -24,10 +24,48 @@ class Job:
     def path(self, rel: str) -> Path:
         return self.dir / rel
 
+    def _fingerprint(self) -> dict | None:
+        """Tamaño y mtime del video actual, o None si el archivo no existe."""
+        try:
+            st = self.video.stat()
+        except OSError:
+            return None
+        return {"video_size": st.st_size, "video_mtime": int(st.st_mtime)}
+
     def state(self) -> dict:
         if self.state_path.exists():
             return json.loads(self.state_path.read_text())
         return {"video": str(self.video), "stages": {}}
+
+    def record_video(self) -> None:
+        """Fija en state.json la huella del archivo que este job dir describe."""
+        st = self.state()
+        fp = self._fingerprint()
+        if fp is None:
+            return
+        st.update(fp)
+        st["video"] = str(self.video)
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.state_path.write_text(json.dumps(st, ensure_ascii=False, indent=2))
+
+    def matches_current_video(self) -> bool:
+        """True si state.json corresponde al archivo de video que hay ahora en disco.
+
+        Falso si no hay estado previo, si no trae huella (jobs de versiones anteriores)
+        o si el editor resubió un archivo distinto con el mismo nombre. En esos casos el
+        caché de etapas no sirve y hay que hacer `reset()`; si coincide, un reintento del
+        mismo archivo reaprovecha probe/transcribe/frames/ocr, que es lo caro.
+        """
+        if not self.state_path.exists():
+            return False
+        try:
+            st = self.state()
+        except (json.JSONDecodeError, OSError):
+            return False
+        fp = self._fingerprint()
+        if fp is None or "video_size" not in st or "video_mtime" not in st:
+            return False
+        return st["video_size"] == fp["video_size"] and st["video_mtime"] == fp["video_mtime"]
 
     def _mark(self, stage: str, status: str, error: str | None = None) -> None:
         st = self.state()

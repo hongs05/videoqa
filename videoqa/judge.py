@@ -146,9 +146,13 @@ def parse_verdict(text: str) -> dict:
         if "frame" in f and f["frame"] is not None and not isinstance(f["frame"], str):
             log.warning("verdict finding: frame no es string, descartado: %r", f["frame"])
             f["frame"] = None
-    if not isinstance(data.get("guion_real_md", ""), str):
+    # El guion real es un entregable del pipeline, no un campo opcional: si viene vacío el
+    # veredicto no sirve y debe reintentarse (o degradarse a "juez no disponible").
+    guion = data.get("guion_real_md")
+    if not isinstance(guion, str):
         raise ValueError("'guion_real_md' debe ser texto")
-    data.setdefault("guion_real_md", "")
+    if not guion.strip():
+        raise ValueError("guion_real_md vacío")
 
     confirmed = data.get("confirmed_code_findings", []) or []
     if not isinstance(confirmed, list):

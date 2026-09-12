@@ -48,7 +48,14 @@ def _rel(settings: Settings, path: Path | None) -> str:
 def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None) -> Result:
     sheet = sheet or SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
     job = Job(video, settings.jobs_dir)
-    job.reset()
+    # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
+    # o si no hay estado previo. Reintentar el MISMO archivo reaprovecha probe/transcribe/
+    # frames/ocr, que son las etapas caras; si no, cada reintento volvía a correr Whisper.
+    if not job.matches_current_video():
+        job.reset()
+    else:
+        log.info("[%s] reintento del mismo archivo: se conservan las etapas cacheadas", job.name)
+    job.record_video()
     started = datetime.now()
     log.info("[%s] inicio", job.name)
     sheet.write(row_for(video.name, "processing", [], "", _rel(settings, video), 0, started))
@@ -107,8 +114,11 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
 
         build_report(job, p, findings, status)
         dest = deliver(job, settings, status)
+        # Con el juez caído la columna "Reporte" muestra el motivo (la ruta del reporte
+        # parcial queda en el propio reporte, dentro de la carpeta del video).
+        note = f"Claude no disponible: {judge_error}" if judge_error else ""
         sheet.write(row_for(video.name, status, findings, _rel(settings, dest / "reporte.md"), _rel(settings, dest / video.name),
-                            float(p["duration"]), datetime.now()))
+                            float(p["duration"]), datetime.now(), note=note))
         log.info("[%s] %s → %s", job.name, status, dest)
         return Result(status, findings, dest, judge_error)
     except Exception as e:  # noqa: BLE001 — fallo tras la extracción (reporte, entrega o Sheet)

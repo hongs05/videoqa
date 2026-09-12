@@ -99,24 +99,36 @@ def test_parse_verdict_valid():
 
 @pytest.mark.parametrize("bad", [
     '{"findings": "no"}',
-    '{"findings": [{"type": "x", "severity": "blocker", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": ""}',
-    '{"findings": [{"type": "marca", "severity": "grave", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": ""}',
+    '{"findings": [{"type": "x", "severity": "blocker", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": "## Escena 1 [0:00] Hola"}',
+    '{"findings": [{"type": "marca", "severity": "grave", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": "## Escena 1 [0:00] Hola"}',
     '{"findings": [], "guion_real_md": 5}',
-    '{"findings": [], "guion_real_md": "", "confirmed_code_findings": "spell-0"}',
-    '{"findings": [], "guion_real_md": "", "dismissed_code_findings": "nope"}',
+    '{"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola", "confirmed_code_findings": "spell-0"}',
+    '{"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola", "dismissed_code_findings": "nope"}',
 ])
 def test_parse_verdict_invalid(bad):
     with pytest.raises(ValueError):
         parse_verdict(bad)
 
+@pytest.mark.parametrize("guion", ["", "   \n\t "])
+def test_parse_verdict_empty_guion_is_invalid(guion):
+    """Un veredicto sin guion real no sirve: obliga al reintento del juez."""
+    with pytest.raises(ValueError, match="guion_real_md vacío"):
+        parse_verdict(json.dumps({"findings": [], "guion_real_md": guion}))
+
+
+def test_parse_verdict_missing_guion_is_invalid():
+    with pytest.raises(ValueError):
+        parse_verdict(json.dumps({"findings": []}))
+
+
 def test_parse_verdict_dismissal_without_reason_is_dropped():
-    bad = json.dumps({"findings": [], "guion_real_md": "",
+    bad = json.dumps({"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
                        "dismissed_code_findings": [{"id": "spell-1"}, {"id": "spell-2", "reason": ""}]})
     v = parse_verdict(bad)
     assert v["dismissed_code_findings"] == []
 
 def test_parse_verdict_dismissal_without_id_is_dropped():
-    bad = json.dumps({"findings": [], "guion_real_md": "",
+    bad = json.dumps({"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
                        "dismissed_code_findings": [{"reason": "nombre propio"}, {"id": "", "reason": "x"}]})
     v = parse_verdict(bad)
     assert v["dismissed_code_findings"] == []
@@ -207,7 +219,7 @@ def test_run_judge_drops_invalid_frame(tmp_path):
     verdict = json.dumps({
         "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
                       "title": "t", "detail": "d", "suggestion": "", "frame": "frames/does_not_exist.jpg"}],
-        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
     })
     out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
                     runner=lambda p, c: verdict, skill_path=SKILL)
@@ -219,7 +231,7 @@ def test_run_judge_keeps_existing_frames_path(tmp_path):
     verdict = json.dumps({
         "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
                       "title": "t", "detail": "d", "suggestion": "", "frame": existing}],
-        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
     })
     out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
                     runner=lambda p, c: verdict, skill_path=SKILL)
@@ -229,7 +241,7 @@ def test_parse_verdict_non_string_frame_becomes_none():
     verdict_with_list_frame = json.dumps({
         "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
                       "title": "t", "detail": "d", "frame": ["x"]}],
-        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
     })
     v = parse_verdict(verdict_with_list_frame)
     assert v["findings"][0]["frame"] is None
@@ -238,7 +250,7 @@ def test_parse_verdict_non_string_frame_dict_becomes_none():
     verdict_with_dict_frame = json.dumps({
         "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
                       "title": "t", "detail": "d", "frame": {"x": 1}}],
-        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
     })
     v = parse_verdict(verdict_with_dict_frame)
     assert v["findings"][0]["frame"] is None
@@ -248,7 +260,7 @@ def test_run_judge_non_string_frame_becomes_none(tmp_path):
     verdict = json.dumps({
         "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
                       "title": "t", "detail": "d", "suggestion": "", "frame": 42}],
-        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
     })
     out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
                     runner=lambda p, c: verdict, skill_path=SKILL)

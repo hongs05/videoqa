@@ -38,6 +38,23 @@ def test_render_error_report():
     assert md.startswith("# ❌ x.mp4 — ERROR")
 
 
+def test_judge_checks_are_pending_not_passed_when_judge_unavailable():
+    fs = [fnd("j", "warning", 0, check="judge_unavailable", typ="tecnico")]
+    md = render_report("x.mp4", PROBE, fs, "error", {}, datetime(2026, 9, 11))
+    passed = md.split("## ✅ Checks pasados")[1].split("## ⏳")[0]
+    assert "Bloopers" not in passed
+    assert "Pantalla negra" in passed          # los checks de código sí se revisaron
+    assert "## ⏳ Pendientes de revisión (Claude no disponible)" in md
+    pending = md.split("## ⏳ Pendientes de revisión (Claude no disponible)")[1]
+    assert "Bloopers" in pending and "Reglas de marca (criterio)" in pending
+
+
+def test_item_line_includes_spanish_type_label():
+    md = render_report("x.mp4", PROBE, [fnd("b", "blocker", 12, typ="marca")], "rejected", {}, datetime(2026, 9, 11))
+    assert "Marca —" in md
+    assert "**[0:12] Marca — Tb**" in md
+
+
 def test_write_evidence_crops_with_bbox(tmp_path):
     video = tmp_path / "v.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")

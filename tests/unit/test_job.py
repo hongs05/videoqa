@@ -32,6 +32,51 @@ def test_reset_clears_dir(tmp_path):
     job.reset()
     assert job.dir.exists() and not job.path("probe.json").exists()
 
+def test_matches_current_video_without_state(tmp_path):
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    assert job.matches_current_video() is False
+
+
+def test_matches_current_video_after_record(tmp_path):
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    job.record_video()
+    assert job.matches_current_video() is True
+    st = json.loads(job.state_path.read_text())
+    assert st["video_size"] == 1 and "video_mtime" in st
+
+
+def test_matches_current_video_false_after_reupload(tmp_path):
+    import os, time
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    job.record_video()
+    video.write_bytes(b"contenido totalmente distinto")   # el editor resube otro archivo
+    os.utime(video, (time.time() + 10, time.time() + 10))
+    assert job.matches_current_video() is False
+
+
+def test_record_video_preserves_stage_state(tmp_path):
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    job.run_stage("probe", "probe.json", lambda j: {"ok": True})
+    job.record_video()
+    st = job.state()
+    assert st["stages"]["probe"]["status"] == "done" and "video_size" in st
+    assert job.matches_current_video() is True
+
+
+def test_stage_marking_preserves_video_fingerprint(tmp_path):
+    """Orden real del pipeline: record_video() primero, luego las etapas."""
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    job.record_video()
+    job.run_stage("probe", "probe.json", lambda j: {"ok": True})
+    assert job.matches_current_video() is True
+    assert job.state()["stages"]["probe"]["status"] == "done"
+
+
 def test_unserializable_result_marks_failed_and_writes_nothing(tmp_path):
     video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")

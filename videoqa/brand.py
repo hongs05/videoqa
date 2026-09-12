@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
 
 from videoqa.claude_runner import ClaudeError, Runner, extract_json
+
+log = logging.getLogger("videoqa")
 
 _HEX_RE = re.compile(r"^#?[0-9A-Fa-f]{6}$")
 
@@ -88,6 +91,19 @@ def build_brand(config_dir: Path, runner: Runner) -> dict:
 def load_brand(config_dir: Path, runner: Runner) -> dict:
     pdf, brand = config_dir / PDF_NAME, config_dir / BRAND_NAME
     if not pdf.exists():
+        # Sin PDF, un brand.json escrito a mano es una configuración válida y soportada
+        # (el equipo puede no tener la guía en PDF). Solo si tampoco hay brand.json —o no
+        # parsea— se cae a la marca vacía, que desactiva el check de color.
+        if brand.exists():
+            try:
+                data = json.loads(brand.read_text())
+            except json.JSONDecodeError as e:
+                log.warning("brand.json ilegible y sin %s para regenerarlo (%s); se omite la marca", PDF_NAME, e)
+                return dict(EMPTY_BRAND)
+            if isinstance(data, dict):
+                log.info("usando brand.json manual (no hay %s)", PDF_NAME)
+                return data
+            log.warning("brand.json no es un objeto JSON y no hay %s para regenerarlo; se omite la marca", PDF_NAME)
         return dict(EMPTY_BRAND)
     if brand_is_stale(config_dir):
         return build_brand(config_dir, runner)

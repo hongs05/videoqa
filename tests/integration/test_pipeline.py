@@ -1,4 +1,3 @@
-import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -24,15 +23,8 @@ def make_env(tmp_path, fixture_videos, name):
     drive = tmp_path / "drive"
     s = Settings(drive_root=drive, jobs_dir=tmp_path / "jobs")
     s.entrada.mkdir(parents=True); s.config_dir.mkdir()
-    # load_brand() ignora brand.json si no hay un guia_de_marca.pdf con el mismo sha256
-    # (ver test_load_brand_without_pdf_ignores_stale_brand_json): sembramos un PDF
-    # placeholder y recalculamos el sha para que el brand.json de fixtures se use tal cual,
-    # sin necesitar el runner de Claude para reconstruirlo.
-    pdf_bytes = b"%PDF fixture guia de marca"
-    (s.config_dir / "guia_de_marca.pdf").write_bytes(pdf_bytes)
-    brand = json.loads((FIX / "brand.json").read_text())
-    brand["source_pdf_sha256"] = hashlib.sha256(pdf_bytes).hexdigest()
-    (s.config_dir / "brand.json").write_text(json.dumps(brand))
+    # Sin guia_de_marca.pdf: load_brand() usa el brand.json manual tal cual, sin runner.
+    shutil.copy(FIX / "brand.json", s.config_dir / "brand.json")
     shutil.copy(FIX / "glosario.txt", s.config_dir / "glosario.txt")
     video = s.entrada / f"{name}.mp4"
     shutil.copy(fixture_videos[name], video)
@@ -85,7 +77,7 @@ def test_judge_dismissal_removes_code_finding(tmp_path, fixture_videos, monkeypa
     def runner(prompt, cwd):
         code = json.loads((cwd / "judge_input" / "findings_code.json").read_text())
         spell_ids = [f["id"] for f in code if f["check"] == "spelling_unknown_word"]
-        return json.dumps({"findings": [], "confirmed_code_findings": [], "guion_real_md": "",
+        return json.dumps({"findings": [], "confirmed_code_findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
                            "dismissed_code_findings": [{"id": i, "reason": "marca del cliente"} for i in spell_ids]})
     res = process_video(video, s, load_rules(), runner=runner)
     assert "spelling_unknown_word" not in {f.check for f in res.findings}
@@ -100,8 +92,14 @@ def test_judge_failure_yields_error_status_in_con_errores(tmp_path, fixture_vide
         raise ClaudeError("rate limit")
     res = process_video(video, s, load_rules(), runner=failing, sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
     assert res.status == "error" and "judge_unavailable" in {f.check for f in res.findings}
-    assert (s.con_errores / "clean" / "reporte.md").read_text().startswith("# ❌")
+    report = (s.con_errores / "clean" / "reporte.md").read_text()
+    assert report.startswith("# ❌")
+    # Sin juez, sus checks NO pueden declararse pasados.
+    assert "## ⏳ Pendientes de revisión (Claude no disponible)" in report
+    assert "Bloopers" not in report.split("## ✅ Checks pasados")[1].split("## ⏳")[0]
     assert ws.rows[1][2] == "❌ Error"
+    # La columna "Reporte" del Sheet lleva el motivo, no una ruta.
+    assert ws.rows[1][5].startswith("Claude no disponible:") and "rate limit" in ws.rows[1][5]
     assert res.dest is not None and res.error
 
 def test_judge_raising_plain_exception_still_degrades_gracefully(tmp_path, fixture_videos, monkeypatch):
