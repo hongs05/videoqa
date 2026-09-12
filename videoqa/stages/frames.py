@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 
 from videoqa.job import Job
 
+log = logging.getLogger("videoqa")
+
 
 def _run(args: list[str]) -> None:
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
+    try:
+        subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"ffmpeg falló: {e.stderr[-1000:] if e.stderr else e}") from e
 
 
 def extract_frames(job: Job, scene_cuts: list[float], fps: int) -> dict:
@@ -20,7 +31,11 @@ def extract_frames(job: Job, scene_cuts: list[float], fps: int) -> dict:
     for k, t in enumerate(scene_cuts, start=1):
         name = f"scene_{k:03d}.jpg"
         ts = round(t + 0.1, 3)
-        _run(["-ss", f"{ts:.3f}", "-i", str(job.video), "-frames:v", "1", "-q:v", "3", str(out / name)])
+        try:
+            _run(["-ss", f"{ts:.3f}", "-i", str(job.video), "-frames:v", "1", "-q:v", "3", str(out / name)])
+        except RuntimeError as e:
+            log.warning("[%s] no se pudo extraer frame de escena en %.2fs: %s", job.name, ts, e)
+            continue
         if (out / name).exists():
             frames.append({"file": f"frames/{name}", "t": ts, "kind": "scene"})
     frames.sort(key=lambda f: f["t"])

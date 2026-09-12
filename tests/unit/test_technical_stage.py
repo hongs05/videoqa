@@ -32,3 +32,37 @@ def test_analyze_black_screen_fixture(fixture_videos, tmp_path):
 def test_analyze_no_audio_fixture(fixture_videos, tmp_path):
     t = analyze(Job(fixture_videos["no_audio"], tmp_path), has_audio=False, scene_threshold=0.3)
     assert t["audio"] is None and t["silence"] == []
+
+
+ASTATS_SILENT = ("[Parsed_astats_1 @ 0x1] Channel: 1\n[Parsed_astats_1 @ 0x1] Peak level dB: -3.0\n"
+                 "[Parsed_astats_1 @ 0x1] Overall\n[Parsed_astats_1 @ 0x1] Peak level dB: -inf\n"
+                 "[Parsed_astats_1 @ 0x1] Peak count: 12\n")
+
+
+def test_parse_astats_inf_peak_is_json_clean():
+    assert parse_astats(ASTATS_SILENT) == {"peak_db": -120.0, "peak_count": 12}
+
+
+def test_parse_freeze_drops_trailing_unmatched_start():
+    stderr = ("[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 5.0\n"
+              "[freezedetect @ 0x1] lavfi.freezedetect.freeze_end: 6.0\n"
+              "[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 9.0\n")
+    assert parse_freeze(stderr) == [{"start": 5.0, "end": 6.0}]
+
+
+def test_parse_freeze_ignores_end_before_any_start():
+    stderr = ("[freezedetect @ 0x1] lavfi.freezedetect.freeze_end: 3.0\n"
+              "[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 5.0\n"
+              "[freezedetect @ 0x1] lavfi.freezedetect.freeze_end: 6.0\n")
+    assert parse_freeze(stderr) == [{"start": 5.0, "end": 6.0}]
+
+
+def test_parse_silence_two_pairs_in_order():
+    stderr = ("[silencedetect @ 0x1] silence_start: 1.0\n"
+              "[silencedetect @ 0x1] silence_end: 2.0 | silence_duration: 1.0\n"
+              "[silencedetect @ 0x1] silence_start: 8.0\n"
+              "[silencedetect @ 0x1] silence_end: 9.5 | silence_duration: 1.5\n")
+    assert parse_silence(stderr) == [
+        {"start": 1.0, "end": 2.0},
+        {"start": 8.0, "end": 9.5},
+    ]

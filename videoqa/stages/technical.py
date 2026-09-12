@@ -27,10 +27,32 @@ def parse_black(stderr: str) -> list[dict]:
     return [{"start": float(a), "end": float(b)} for a, b in _BLACK.findall(stderr)]
 
 
+def _parse_paired_intervals(stderr: str, start_re: re.Pattern, end_re: re.Pattern) -> list[dict]:
+    """Empareja marcas start/end en orden de aparición en las líneas de stderr.
+
+    Un start abre un intervalo; el siguiente end lo cierra (solo si end > start).
+    Un start final sin end se descarta; un end sin start abierto se ignora.
+    """
+    intervals: list[dict] = []
+    pending_start: float | None = None
+    for line in stderr.splitlines():
+        m_start = start_re.search(line)
+        if m_start:
+            pending_start = float(m_start.group(1))
+            continue
+        m_end = end_re.search(line)
+        if m_end:
+            if pending_start is not None:
+                end = float(m_end.group(1))
+                if end > pending_start:
+                    intervals.append({"start": pending_start, "end": end})
+                pending_start = None
+            # end sin start abierto: se ignora
+    return intervals
+
+
 def parse_freeze(stderr: str) -> list[dict]:
-    starts = [float(x) for x in _FREEZE_START.findall(stderr)]
-    ends = [float(x) for x in _FREEZE_END.findall(stderr)]
-    return [{"start": s, "end": e} for s, e in zip(starts, ends)]
+    return _parse_paired_intervals(stderr, _FREEZE_START, _FREEZE_END)
 
 
 def parse_scene(stderr: str) -> list[float]:
@@ -38,9 +60,7 @@ def parse_scene(stderr: str) -> list[float]:
 
 
 def parse_silence(stderr: str) -> list[dict]:
-    starts = [float(x) for x in _SIL_START.findall(stderr)]
-    ends = [float(x) for x in _SIL_END.findall(stderr)]
-    return [{"start": s, "end": e} for s, e in zip(starts, ends)]
+    return _parse_paired_intervals(stderr, _SIL_START, _SIL_END)
 
 
 def parse_astats(stderr: str) -> dict | None:
@@ -52,7 +72,7 @@ def parse_astats(stderr: str) -> dict | None:
     cnt = _PEAK_COUNT.search(tail)
     if not db:
         return None
-    peak = float("-inf") if db.group(1) == "-inf" else float(db.group(1))
+    peak = -120.0 if db.group(1) == "-inf" else float(db.group(1))
     return {"peak_db": peak, "peak_count": int(cnt.group(1)) if cnt else 0}
 
 
