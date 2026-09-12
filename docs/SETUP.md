@@ -1,5 +1,20 @@
 # VideoQA — Instalación y operación
 
+## Instalación para no técnicos
+
+Si quien instala no es técnico, no hace falta nada de lo que sigue. Se le entrega el paquete
+`VideoQA-demo.zip` (se genera con `bash scripts/build_demo_zip.sh`) y solo tiene que:
+
+1. Descomprimir el `.zip` y hacer doble clic en **`Instalar VideoQA.command`** — instala
+   Homebrew, `uv`, `ffmpeg` y Claude Code, copia el proyecto a `~/videoqa` y prepara el entorno.
+2. Abrir Claude Code en `~/videoqa` y escribir **`/instalar`** — configuración guiada
+   (carpeta de Drive, modelo de voz según la RAM, guía de marca, login de Claude y prueba).
+
+A partir de ahí se opera hablando: `/revisar`, `/estado`, `/ajustar`, `/activar-automatico`
+(ver `.claude/skills/README.md`). La guía para el equipo está en `LEEME.md`.
+
+El resto de este documento es la instalación manual, paso a paso.
+
 ## Requisitos
 - Mac con Apple Silicon, macOS 14+.
 - Google Drive para escritorio con la carpeta del equipo sincronizada (modo "Stream" o "Mirror").
