@@ -14,10 +14,16 @@ _SIL_END = re.compile(r"silence_end:\s*([\d.]+)")
 _PEAK_DB = re.compile(r"Peak level dB:\s*(-?[\d.]+|-inf)")
 _PEAK_COUNT = re.compile(r"Peak count:\s*(\d+)")
 
+FFMPEG_TIMEOUT_S = 900
+TIMEOUT_MSG = "ffmpeg/ffprobe superó el tiempo máximo (900 s)"
+
 
 def _ffmpeg(args: list[str]) -> str:
     cmd = ["ffmpeg", "-hide_banner", "-nostats", *args, "-f", "null", "-"]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_S)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(TIMEOUT_MSG) from e
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg falló: {proc.stderr[-1000:]}")
     return proc.stderr

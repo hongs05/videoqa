@@ -57,6 +57,35 @@ def test_watch_once_continues_after_process_raises(tmp_path):
     watch(s, {}, runner=lambda p, c: "", once=True, process=fake_process, sleep=lambda x: None, stable_wait_s=0)
     assert seen == []
 
+def test_watch_warns_once_when_file_is_unstable_too_long(tmp_path, caplog):
+    """Un archivo que lleva >10 min 'sincronizando' merece un aviso (Drive atascado)."""
+    import logging
+    s = Settings(drive_root=tmp_path / "drive", jobs_dir=tmp_path / "jobs")
+    s.entrada.mkdir(parents=True)
+    growing = s.entrada / "g.mp4"; growing.write_bytes(b"1")
+
+    def never_stable(video, settings, rules, runner, sheet=None):
+        raise AssertionError("no debería procesarse un archivo inestable")
+
+    passes = {"n": 0}
+
+    def loop_sleep(_):
+        passes["n"] += 1
+        growing.write_bytes(growing.read_bytes() + b"1")   # sigue creciendo: nunca estable
+        if passes["n"] > 8:
+            raise StopIteration
+
+    with caplog.at_level(logging.WARNING, logger="videoqa"):
+        try:
+            watch(s, {}, runner=lambda p, c: "", once=False, process=never_stable,
+                  sleep=loop_sleep, stable_wait_s=1, unstable_warn_s=0)
+        except StopIteration:
+            pass
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len([w for w in warnings if "sincronizando" in w]) == 1
+
+
 def test_watch_reprocesses_reuploaded_file_with_different_size(tmp_path):
     s = Settings(drive_root=tmp_path / "drive", jobs_dir=tmp_path / "jobs")
     s.entrada.mkdir(parents=True)

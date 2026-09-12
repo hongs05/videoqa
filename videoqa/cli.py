@@ -39,9 +39,16 @@ def make_runner(settings: Settings, rules: dict) -> Runner:
 
 
 def make_sheet(settings: Settings) -> SheetWriter:
+    log = logging.getLogger("videoqa")
     factory = None
     if settings.sheet_id and settings.service_account_json:
         factory = lambda: SheetClient.connect(settings.sheet_id, settings.service_account_json)  # noqa: E731
+    elif settings.sheet_id or settings.service_account_json:
+        # Media configuración es casi siempre un descuido: el Sheet se desactiva en silencio
+        # y el equipo cree que el tablero se está actualizando.
+        falta = "service_account_json" if settings.sheet_id else "sheet_id"
+        log.warning("Sheet desactivado: falta '%s' en la configuración (re-ejecuta `videoqa init` "
+                    "con --sheet-id y --service-account)", falta)
     return SheetWriter(factory, settings.jobs_dir / "sheet_pending.json")
 
 

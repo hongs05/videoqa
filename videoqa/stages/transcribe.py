@@ -5,13 +5,18 @@ from pathlib import Path
 
 from videoqa.job import Job
 
+FFMPEG_TIMEOUT_S = 900
+
+
 def empty_transcript() -> dict:
     return {"language": "es", "text": "", "segments": []}
 
 
 def extract_audio(video: Path, wav: Path) -> None:
+    # Sin wrapper: un TimeoutExpired sube tal cual y lo atrapa el pipeline (except Exception).
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(video),
-                    "-vn", "-ac", "1", "-ar", "16000", str(wav)], check=True)
+                    "-vn", "-ac", "1", "-ar", "16000", str(wav)], check=True,
+                   timeout=FFMPEG_TIMEOUT_S)
 
 
 def normalize(raw: dict) -> dict:

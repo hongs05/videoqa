@@ -62,16 +62,23 @@ Luego instala el agente:
 ```bash
 sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoeditorpipeline|g" -e "s|__UV__|$(command -v uv)|g" \
   launchd/com.videoqa.watcher.plist > ~/Library/LaunchAgents/com.videoqa.watcher.plist
-launchctl load ~/Library/LaunchAgents/com.videoqa.watcher.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.videoqa.watcher.plist
 ```
+> **El agente tiene que correr en la sesión gráfica** (`gui/$UID`, que es lo que hace
+> `bootstrap`), no como demonio de sistema: el OCR usa el framework **Vision** y la ortografía
+> usa **NSSpellChecker**, y ambos necesitan una sesión de usuario con ventanas iniciada. Con
+> `launchctl load` (obsoleto) o en un dominio sin GUI, el OCR devuelve vacío y el corrector da
+> por buena cualquier palabra. Corolario: la Mac debe estar encendida y con la sesión abierta
+> (basta con la pantalla bloqueada; no sirve cerrar sesión).
+
 Ver estado / logs:
 ```bash
-launchctl list | grep videoqa
+launchctl print gui/$UID/com.videoqa.watcher | head -20
 tail -f ~/.videoqa/videoqa.log
 ```
 Detener:
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.videoqa.watcher.plist
+launchctl bootout gui/$UID/com.videoqa.watcher
 ```
 
 ## Regla del equipo

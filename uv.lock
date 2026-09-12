@@ -1046,6 +1046,7 @@ dependencies = [
     { name = "numpy" },
     { name = "ocrmac" },
     { name = "pillow" },
+    { name = "pyobjc-framework-cocoa" },
     { name = "pyyaml" },
 ]
 
@@ -1062,6 +1063,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "ocrmac", specifier = ">=1.0" },
     { name = "pillow", specifier = ">=10.0" },
+    { name = "pyobjc-framework-cocoa", specifier = ">=10" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 

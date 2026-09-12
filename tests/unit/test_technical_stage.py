@@ -1,4 +1,9 @@
+import subprocess
+
+import pytest
+
 from videoqa.job import Job
+from videoqa.stages import technical as tech
 from videoqa.stages.technical import (analyze, parse_astats, parse_black, parse_freeze,
                                        parse_scene, parse_silence)
 
@@ -55,6 +60,19 @@ def test_parse_freeze_ignores_end_before_any_start():
               "[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 5.0\n"
               "[freezedetect @ 0x1] lavfi.freezedetect.freeze_end: 6.0\n")
     assert parse_freeze(stderr) == [{"start": 5.0, "end": 6.0}]
+
+
+def test_ffmpeg_timeout_becomes_runtime_error(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(tech.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="tiempo máximo"):
+        tech._ffmpeg(["-i", "x.mp4"])
+    assert captured["timeout"] == 900
 
 
 def test_parse_silence_two_pairs_in_order():

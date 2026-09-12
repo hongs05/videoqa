@@ -7,6 +7,9 @@ from videoqa.job import Job
 
 log = logging.getLogger("videoqa")
 
+FFMPEG_TIMEOUT_S = 900
+TIMEOUT_MSG = "ffmpeg/ffprobe superó el tiempo máximo (900 s)"
+
 
 def _run(args: list[str]) -> None:
     try:
@@ -15,7 +18,10 @@ def _run(args: list[str]) -> None:
             check=True,
             capture_output=True,
             text=True,
+            timeout=FFMPEG_TIMEOUT_S,
         )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(TIMEOUT_MSG) from e
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"ffmpeg falló: {e.stderr[-1000:] if e.stderr else e}") from e
 
