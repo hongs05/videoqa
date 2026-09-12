@@ -224,3 +224,32 @@ def test_run_judge_keeps_existing_frames_path(tmp_path):
     out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
                     runner=lambda p, c: verdict, skill_path=SKILL)
     assert out["findings"][0].frame == existing
+
+def test_parse_verdict_non_string_frame_becomes_none():
+    verdict_with_list_frame = json.dumps({
+        "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
+                      "title": "t", "detail": "d", "frame": ["x"]}],
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+    })
+    v = parse_verdict(verdict_with_list_frame)
+    assert v["findings"][0]["frame"] is None
+
+def test_parse_verdict_non_string_frame_dict_becomes_none():
+    verdict_with_dict_frame = json.dumps({
+        "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
+                      "title": "t", "detail": "d", "frame": {"x": 1}}],
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+    })
+    v = parse_verdict(verdict_with_dict_frame)
+    assert v["findings"][0]["frame"] is None
+
+def test_run_judge_non_string_frame_becomes_none(tmp_path):
+    job = make_job(tmp_path)
+    verdict = json.dumps({
+        "findings": [{"type": "blooper", "severity": "blocker", "t_start": 3.0, "t_end": 4.0,
+                      "title": "t", "detail": "d", "suggestion": "", "frame": 42}],
+        "confirmed_code_findings": [], "dismissed_code_findings": [], "guion_real_md": "",
+    })
+    out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
+                    runner=lambda p, c: verdict, skill_path=SKILL)
+    assert out["findings"][0].frame is None

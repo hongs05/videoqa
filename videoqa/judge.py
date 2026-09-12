@@ -142,6 +142,10 @@ def parse_verdict(text: str) -> dict:
         for k in ("title", "detail"):
             if not isinstance(f.get(k), str) or not f[k]:
                 raise ValueError(f"{k} requerido")
+        # Sanitize frame: if present and not None and not a string, set to None with warning
+        if "frame" in f and f["frame"] is not None and not isinstance(f["frame"], str):
+            log.warning("verdict finding: frame no es string, descartado: %r", f["frame"])
+            f["frame"] = None
     if not isinstance(data.get("guion_real_md", ""), str):
         raise ValueError("'guion_real_md' debe ser texto")
     data.setdefault("guion_real_md", "")
@@ -202,9 +206,13 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
     findings = []
     for i, f in enumerate(verdict["findings"]):
         frame = f.get("frame") or None
-        if frame is not None and frame not in valid_frames and not (frame.startswith("frames/") and job.path(frame).exists()):
-            log.warning("[%s] juez: frame inválido descartado: %s", job.name, frame)
-            frame = None
+        if frame is not None:
+            if not isinstance(frame, str):
+                log.warning("[%s] juez: frame no es string, descartado: %r", job.name, frame)
+                frame = None
+            elif frame not in valid_frames and not (frame.startswith("frames/") and job.path(frame).exists()):
+                log.warning("[%s] juez: frame inválido descartado: %s", job.name, frame)
+                frame = None
         findings.append(Finding(id=f"claude-{i}", type=f["type"], severity=f["severity"], t_start=float(f["t_start"]),
                                 t_end=float(f["t_end"]), title=f["title"], detail=f["detail"],
                                 suggestion=str(f.get("suggestion", "")), frame=frame,
