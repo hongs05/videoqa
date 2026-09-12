@@ -31,3 +31,12 @@ def test_reset_clears_dir(tmp_path):
     job.run_stage("probe", "probe.json", lambda j: {})
     job.reset()
     assert job.dir.exists() and not job.path("probe.json").exists()
+
+def test_unserializable_result_marks_failed_and_writes_nothing(tmp_path):
+    video = tmp_path / "promo.mp4"; video.write_bytes(b"x")
+    job = Job(video, tmp_path / "jobs")
+    with pytest.raises(TypeError):
+        job.run_stage("probe", "probe.json", lambda j: {"x": object()})
+    assert job.state()["stages"]["probe"]["status"] == "failed"
+    assert not job.path("probe.json").exists()
+    assert not job.path("probe.json.tmp").exists()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -41,12 +42,16 @@ class Job:
             log.info("[%s] etapa %s: cacheada", self.name, name)
             return json.loads(out.read_text())
         log.info("[%s] etapa %s: ejecutando", self.name, name)
+        tmp = out.with_suffix(out.suffix + ".tmp")
         try:
             result = fn(self)
+            tmp.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+            os.replace(tmp, out)
         except Exception as e:  # noqa: BLE001 — registramos y re-lanzamos
             self._mark(name, "failed", f"{type(e).__name__}: {e}")
+            if tmp.exists():
+                tmp.unlink()
             raise
-        out.write_text(json.dumps(result, ensure_ascii=False, indent=2))
         self._mark(name, "done")
         return result
 
