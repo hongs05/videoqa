@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run videoqa:*)",
+      "Bash(uv sync:*)",
+      "Bash(open:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(tail:*)",
+      "Bash(sysctl:*)",
+      "Bash(osascript:*)",
+      "Bash(launchctl:*)",
+      "Bash(sed:*)",
+      "Bash(cp:*)",
+      "Bash(mkdir:*)",
+      "Bash(command -v:*)",
+      "Bash(echo:*)",
+      "Read",
+      "Edit(reglas.yaml)",
+      "Write"
+    ]
+  }
+}

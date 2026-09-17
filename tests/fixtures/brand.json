@@ -1,0 +1,11 @@
+{
+  "palette": [
+    {"name": "Negro", "hex": "#1A1A1A"},
+    {"name": "Blanco", "hex": "#FFFFFF"},
+    {"name": "Amarillo", "hex": "#F5C518"}
+  ],
+  "fonts": ["Arial"],
+  "rules": ["Los títulos nunca en rojo"],
+  "logo_required": false,
+  "source_pdf_sha256": "fixture"
+}
