@@ -84,7 +84,9 @@ def _punctuation_issues(text: str) -> list[str]:
 
 def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, checker=None) -> list[Finding]:
     if checker is None:
-        checker = MacSpellChecker()
+        from videoqa import backends
+
+        checker = backends.get_speller()()
     sev = rules["severities"]
     min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
     out = []

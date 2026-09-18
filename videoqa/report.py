@@ -127,9 +127,11 @@ def render_report(video_name: str, probe: dict, findings: list[Finding], status:
     return "\n".join(lines)
 
 
-def build_report(job: Job, probe: dict, findings: list[Finding], status: str, when: datetime | None = None) -> Path:
+def build_report(job: Job, probe: dict, findings: list[Finding], status: str,
+                 when: datetime | None = None) -> tuple[Path, dict[str, str]]:
+    """Escribe reporte.md y devuelve (ruta, evidencia) para reutilizar los recortes."""
     evidence = write_evidence(job, findings)
     md = render_report(job.video.name, probe, findings, status, evidence, when or datetime.now())
     out = job.path("reporte.md")
     out.write_text(md, encoding="utf-8")
-    return out
+    return out, evidence

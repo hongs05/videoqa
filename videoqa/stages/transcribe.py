@@ -29,6 +29,15 @@ def normalize(raw: dict) -> dict:
 
 
 def transcribe(job: Job, has_audio: bool, model: str) -> dict:
+    """Sin audio no hay nada que transcribir; si lo hay, delega en el backend."""
+    from videoqa import backends
+
+    if not has_audio:
+        return empty_transcript()
+    return backends.get_transcriber()(job, has_audio, model)
+
+
+def _transcribe_apple(job: Job, has_audio: bool, model: str) -> dict:
     if not has_audio:
         return empty_transcript()
     wav = job.path("audio.wav")

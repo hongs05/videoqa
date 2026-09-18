@@ -123,3 +123,13 @@ def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos):
                         sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
     assert res.status == "error" and res.error and bad.exists()
     assert ws.rows[-1][2] == "❌ Error" and ws.rows[-1][5]
+
+
+def test_genera_reporte_html_cuando_la_regla_esta_activa(tmp_path, fixture_videos, monkeypatch):
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "clean")
+    rules = load_rules()
+    rules["salida"] = {"reporte_html": True}
+    res = process_video(video, s, rules, runner=lambda p, cwd: GOOD_VERDICT)
+    assert (res.dest / "reporte.html").exists()
+    assert "APROBADO" in (res.dest / "reporte.html").read_text(encoding="utf-8")

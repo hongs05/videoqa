@@ -88,8 +88,11 @@ def test_frontmatter_del_skill(skill: Path) -> None:
 
 def test_skill_del_motor_sigue_en_su_sitio() -> None:
     # El plugin se llevó los skills de la persona; el criterio del juez no.
+    # Desde que el motor se instala como librería, el prompt vive dentro del
+    # paquete (videoqa/prompts) y .claude/skills conserva el que lee Claude Code.
     assert SKILL_PATH.exists(), f"falta {SKILL_PATH}"
-    assert SKILL_PATH.parent.parent.name == "skills"
+    assert SKILL_PATH.parent.name == "prompts"
+    assert (ROOT / ".claude" / "skills" / "revisor-video" / "SKILL.md").exists()
 
 
 def test_hook_de_sesion() -> None:

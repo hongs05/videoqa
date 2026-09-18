@@ -116,7 +116,11 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             status = decide(findings)
             judge_error = None
 
-        build_report(job, p, findings, status)
+        _, evidencia = build_report(job, p, findings, status)
+        if rules.get("salida", {}).get("reporte_html"):
+            from videoqa.report_html import build_html_report
+
+            build_html_report(job, p, findings, status, evidencia)
         dest = deliver(job, settings, status)
         # Con el juez caído la columna "Reporte" muestra el motivo (la ruta del reporte
         # parcial queda en el propio reporte, dentro de la carpeta del video).
