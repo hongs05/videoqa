@@ -29,3 +29,27 @@ def test_el_prompt_tiene_las_secciones_clave():
     texto = SKILL_PATH.read_text(encoding="utf-8")
     for seccion in ("# Rol", "# Entradas", "# Qué revisar", "# Guion real", "# Salida", "# Seguridad"):
         assert seccion in texto, f"falta la sección {seccion}"
+
+
+def test_las_reglas_viajan_dentro_del_paquete():
+    """Sin esto, load_rules() falla al instalar el motor como librería."""
+    import videoqa
+    from videoqa.config import _REGLAS_PAQUETE
+
+    paquete = Path(videoqa.__file__).resolve().parent
+    assert _REGLAS_PAQUETE.exists() and _REGLAS_PAQUETE.is_relative_to(paquete)
+
+
+def test_las_reglas_del_paquete_son_completas():
+    import yaml
+
+    from videoqa.config import _REGLAS_PAQUETE
+
+    datos = yaml.safe_load(_REGLAS_PAQUETE.read_text(encoding="utf-8"))
+    assert set(datos) >= {"severities", "thresholds", "frames", "claude"}
+
+
+def test_en_el_repo_mandan_las_reglas_de_la_raiz():
+    from videoqa.config import _REGLAS_REPO, RULES_PATH
+
+    assert RULES_PATH == _REGLAS_REPO

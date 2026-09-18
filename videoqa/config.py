@@ -6,7 +6,13 @@ from pathlib import Path
 
 import yaml
 
-RULES_PATH = Path(__file__).resolve().parent.parent / "reglas.yaml"
+_REGLAS_REPO = Path(__file__).resolve().parent.parent / "reglas.yaml"
+_REGLAS_PAQUETE = Path(__file__).resolve().parent / "reglas.yaml"
+
+# En una copia del repositorio manda el reglas.yaml de la raíz: es el que edita
+# el equipo (y el que toca /aura:ajustar). Instalado con pip esa ruta no existe,
+# así que se usa la copia que viaja dentro del paquete con los valores por defecto.
+RULES_PATH = _REGLAS_REPO if _REGLAS_REPO.exists() else _REGLAS_PAQUETE
 _PROMPT_PAQUETE = Path(__file__).resolve().parent / "prompts" / "revisor-video.md"
 _PROMPT_REPO = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "revisor-video" / "SKILL.md"
 

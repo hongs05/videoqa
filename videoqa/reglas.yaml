@@ -1,0 +1,42 @@
+# Severidades: blocker | warning | info
+severities:
+  spelling_unknown_word: blocker
+  spelling_punctuation: warning
+  brand_color: blocker
+  text_visible_short: warning
+  subtitle_desync: warning
+  text_occluded: warning
+  black_frame: blocker
+  frozen_frame: warning
+  silence: warning
+  audio_clipping: warning
+  aspect_ratio: warning
+  no_audio: warning
+  judge_unavailable: warning
+
+thresholds:
+  color_delta_e: 8.0        # ΔE2000 máximo para considerar un color "de paleta"
+  min_text_visible_s: 1.0   # texto visible menos tiempo = ilegible
+  desync_s: 1.0             # subtítulo vs audio
+  black_min_s: 0.5
+  freeze_min_s: 0.5
+  silence_min_s: 2.0
+  edge_margin_s: 0.5        # ignorar negro/silencio en los primeros/últimos N s
+  ocr_min_conf: 0.5         # confianza OCR mínima para checks de ortografía/color
+  occluded_bottom: 0.80     # y+h por encima de esto = tapado por UI de TikTok/Reels
+  occluded_right: 0.85      # x+w por encima de esto = tapado por iconos laterales
+  aspect_tolerance: 0.02
+  clipping_peak_db: -0.1
+  clipping_min_count: 100
+
+frames:
+  fps: 2                    # frames por segundo para OCR
+  scene_threshold: 0.2      # sensibilidad de corte de escena (0-1)
+
+claude:
+  max_frames: 15
+  frame_height: 720
+  timeout_s: 600
+
+salida:
+  reporte_html: false   # true para generar también reporte.html (Windows lo activa)
