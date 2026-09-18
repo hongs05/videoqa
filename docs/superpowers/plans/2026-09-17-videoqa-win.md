@@ -2899,6 +2899,26 @@ Expected: "instalación desde git OK". Esto valida la cadena completa de depende
 
 ---
 
+## Correcciones aplicadas durante la ejecución
+
+Cuatro cosas que el plan no previó y se resolvieron al ejecutarlo (quedan aquí para quien lo lea
+después):
+
+1. **hatchling rechaza dependencias `git+`** salvo que el `pyproject.toml` declare
+   `[tool.hatch.metadata] allow-direct-references = true`. Sin eso, la Task 4 no arranca.
+2. **`reglas.yaml` también vivía fuera del paquete**, igual que el prompt del juez: `load_rules()`
+   fallaba en cualquier instalación con pip. Se empaquetó una copia (`videoqa/reglas.yaml`) con
+   precedencia para la de la raíz del repo, que es la que edita el equipo.
+3. **Sin juez, el motor marcaba `error` en todos los videos**, así que en Windows nunca habría un
+   🟢 y la herramienta sería inútil. El spec heredó de la Mac la regla "nunca aprobar sin juez"
+   sin ver que en el pre-chequeo el juez falta a propósito. Se añadió `juez_requerido` al motor
+   (por omisión `true`, así la Mac no cambia) y `videoqa-win` lo pone en `false`: el veredicto
+   sale de los checks automáticos y el aviso de "esta revisión no incluye criterio" queda como
+   información, no como fallo.
+4. Dos tests del plan traían expectativas equivocadas: el diccionario falso de la Task 6 no
+   sugería nada para "kasa", y la regla de comillas de la Task 12 se aplicaba también a las líneas
+   `echo`, que son texto en pantalla y no rutas de comando.
+
 ## Auto-revisión del plan
 
 **Cobertura del spec:**
