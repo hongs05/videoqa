@@ -38,15 +38,16 @@ carpeta con su nombre.
 
 ## Cómo hablar con Claude
 
-Abre Claude Code en la carpeta del proyecto y escríbele. Hay cinco comandos:
+Abre Claude (la aplicación, pestaña Code) y escríbele. Hay seis comandos:
 
 | Comando | Para qué |
 | --- | --- |
-| `/instalar` | Configurarlo todo la primera vez. |
-| `/revisar` | Revisar los videos pendientes. |
-| `/estado` | Ver qué hay pendiente y cómo va todo. |
-| `/ajustar` | Cambiar qué se marca como error. |
-| `/activar-automatico` | Que revise solo, sin pedírselo. |
+| `/aura:instalar` | Configurarlo todo la primera vez. |
+| `/aura:revisar` | Revisar los videos pendientes. |
+| `/aura:estado` | Ver qué hay pendiente y cómo va todo. |
+| `/aura:ajustar` | Cambiar qué se marca como error. |
+| `/aura:activar-automatico` | Que revise solo, sin pedírselo. |
+| `/aura:actualizar` | Ponerlo al día cuando haya versión nueva. |
 
 No hace falta usar los comandos: puedes escribirle normal, como a una persona. Por ejemplo:
 
@@ -71,5 +72,8 @@ Si algo no funciona, pregúntale directamente: «no me está revisando nada, ¿q
    (la primera vez macOS avisa que "procede de un desarrollador no identificado"; con clic
    derecho → Abrir se puede continuar). Te pedirá la contraseña de la Mac para instalar
    herramientas.
-2. Cuando termine, abre Claude en la carpeta `videoqa` de tu usuario y escribe `/instalar`.
-   Claude te guiará: elegir la carpeta de videos, iniciar sesión, hacer una prueba.
+2. Cuando termine, abre Claude (la aplicación, pestaña Code) o escribe `claude` en la Terminal, y
+   escribe `/aura:instalar`. Claude te guiará: elegir la carpeta de videos, cargar la guía de
+   marca y hacer una prueba.
+
+Cuando haya una versión nueva, escribe `/aura:actualizar` y se pone al día solo.
