@@ -6,12 +6,22 @@ Si quien instala no es técnico, no hace falta nada de lo que sigue. Se le entre
 `VideoQA-demo.zip` (se genera con `bash scripts/build_demo_zip.sh`) y solo tiene que:
 
 1. Descomprimir el `.zip` y hacer doble clic en **`Instalar VideoQA.command`** — instala
-   Homebrew, `uv`, `ffmpeg` y Claude Code, copia el proyecto a `~/videoqa` y prepara el entorno.
-2. Abrir Claude Code en `~/videoqa` y escribir **`/instalar`** — configuración guiada
-   (carpeta de Drive, modelo de voz según la RAM, guía de marca, login de Claude y prueba).
+   Homebrew, `uv`, `ffmpeg` y Claude Code, y añade el plugin `aura`:
+   ```bash
+   claude plugin marketplace add hongs05/videoqa
+   claude plugin install aura@videoqa
+   ```
+2. Abrir Claude (app, pestaña Code) y escribir **`/aura:instalar`** — configuración guiada: clona
+   el motor en `~/videoqa`, prepara Python, elige la carpeta de Drive, ajusta el modelo de voz
+   según la RAM, carga la guía de marca y hace una prueba.
 
-A partir de ahí se opera hablando: `/revisar`, `/estado`, `/ajustar`, `/activar-automatico`
-(ver `.claude/skills/README.md`). La guía para el equipo está en `LEEME.md`.
+A partir de ahí se opera hablando: `/aura:revisar`, `/aura:estado`, `/aura:ajustar`,
+`/aura:activar-automatico`, `/aura:actualizar` (ver `plugins/aura/README.md`). La guía para el
+equipo está en `LEEME.md`.
+
+**Convención de rutas:** el motor instalado vive siempre en `~/videoqa` y todo se ejecuta como
+`uv run --project ~/videoqa videoqa …`. Este repositorio es ese mismo motor más el marketplace y
+el plugin; en desarrollo se trabaja desde su raíz con `uv run videoqa …`.
 
 El resto de este documento es la instalación manual, paso a paso.
 
@@ -28,8 +38,8 @@ El resto de este documento es la instalación manual, paso a paso.
 ## 1. Instalar
 ```bash
 brew install uv ffmpeg
-cd ~/videoeditorpipeline
-uv sync
+git clone https://github.com/hongs05/videoqa ~/videoqa
+uv sync --project ~/videoqa
 ```
 
 ## 2. Configurar
@@ -37,7 +47,7 @@ Localiza la carpeta sincronizada, por ejemplo
 `~/Library/CloudStorage/GoogleDrive-<cuenta>/Shared drives/<Equipo>/Revision_Videos`.
 
 ```bash
-uv run videoqa init --drive-root "<ruta a Revision_Videos>"
+uv run --project ~/videoqa videoqa init --drive-root "<ruta a Revision_Videos>"
 ```
 Esto crea `_config/`, `01_Entrada/`, `02_Con_errores/`, `03_Aprobado/` y `~/.videoqa/config.yaml`.
 
@@ -46,7 +56,7 @@ crea `_config/glosario.txt` con una palabra por línea (nombres propios, marcas,
 
 Genera la paleta y reglas (usa Claude una sola vez; revisa el resultado a mano si quieres):
 ```bash
-uv run videoqa brand
+uv run --project ~/videoqa videoqa brand
 cat "<ruta a Revision_Videos>/_config/brand.json"
 ```
 `_config/brand.json` es un archivo de texto plano: también puedes editarlo a mano (por ejemplo,
@@ -58,12 +68,12 @@ para ajustar un color de paleta o añadir una regla) sin volver a correr `videoq
 2. Crear un Sheet llamado `Tablero Revision` y compartirlo (Editor) con el email de la cuenta de servicio.
 3. Copiar el ID del Sheet (parte de la URL entre `/d/` y `/edit`) y re-ejecutar:
 ```bash
-uv run videoqa init --drive-root "<ruta>" --sheet-id <ID> --service-account ~/.videoqa/service_account.json
+uv run --project ~/videoqa videoqa init --drive-root "<ruta>" --sheet-id <ID> --service-account ~/.videoqa/service_account.json
 ```
 
 ## 4. Probar con un video
 ```bash
-uv run videoqa run "<ruta a Revision_Videos>/01_Entrada/mi_video.mp4"
+uv run --project ~/videoqa videoqa run "<ruta a Revision_Videos>/01_Entrada/mi_video.mp4"
 ```
 La primera vez descarga el modelo de Whisper (~1.5 GB). El resultado queda en `02_Con_errores/` o
 `03_Aprobado/` con `reporte.md`, `guion_real.md` y `evidencia/`.
@@ -71,12 +81,12 @@ La primera vez descarga el modelo de Whisper (~1.5 GB). El resultado queda en `0
 ## 5. Dejarlo corriendo solo (launchd)
 Antes de instalarlo como agente, conviene probar el watcher a mano una vez:
 ```bash
-uv run videoqa watch --once
+uv run --project ~/videoqa videoqa watch --once
 ```
 Luego instala el agente:
 ```bash
-sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoeditorpipeline|g" -e "s|__UV__|$(command -v uv)|g" \
-  launchd/com.videoqa.watcher.plist > ~/Library/LaunchAgents/com.videoqa.watcher.plist
+sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoqa|g" -e "s|__UV__|$(command -v uv)|g" \
+  ~/videoqa/launchd/com.videoqa.watcher.plist > ~/Library/LaunchAgents/com.videoqa.watcher.plist
 launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.videoqa.watcher.plist
 ```
 > **El agente tiene que correr en la sesión gráfica** (`gui/$UID`, que es lo que hace
@@ -101,8 +111,8 @@ Solo se publica lo que está en `03_Aprobado/`. Si un video cae en `02_Con_error
 corrige, vuelve a subir el archivo a `01_Entrada/` con el mismo nombre y espera el nuevo reporte.
 
 ## Ajustar severidades
-Edita `reglas.yaml` (por ejemplo, `silence: blocker`) y reinicia el watcher. Para cambiar el criterio
-de Claude, edita `.claude/skills/revisor-video/SKILL.md`.
+Edita `~/videoqa/reglas.yaml` (por ejemplo, `silence: blocker`) y reinicia el watcher. Para cambiar el criterio
+de Claude, edita `~/videoqa/.claude/skills/revisor-video/SKILL.md`.
 
 ## Problemas comunes
 - **El video no se procesa**: ¿está la Mac encendida y Drive terminó de sincronizar? Mira `videoqa.log`.

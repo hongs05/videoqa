@@ -1,12 +1,15 @@
 ---
-name: revisar
-description: Revisa los videos pendientes y explica el resultado en español sencillo. Úsalo cuando la persona diga "revisa los videos nuevos", "revisa el de la promo", "¿cómo quedó este video?", "pasa la revisión" o /revisar.
+description: Revisa los videos pendientes y explica en español sencillo qué corregir y en qué segundo. Úsalo cuando la persona diga "revisa los videos nuevos", "revisa el de la promo" o "¿cómo quedó este video?".
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(open:*) Bash(ls:*) Read
 ---
 
 # Revisar videos
 
-Trabaja desde la raíz del proyecto (donde está `pyproject.toml`). La persona es **no técnica**:
-habla en español informal (tú), sin jerga, sin comandos a la vista.
+La persona es **no técnica**: habla en español informal (tú), sin jerga, sin comandos a la vista.
+
+El motor vive en `~/videoqa` y todo se lanza como `uv run --project ~/videoqa videoqa …`.
+Antes de nada, comprueba que la carpeta `~/videoqa` existe (`ls ~/videoqa`). Si no está, dile
+"Todavía no está instalado: escribe `/aura:instalar` y lo dejamos listo" y termina.
 
 ## Paso 1 — Decidir qué revisar
 
@@ -23,13 +26,13 @@ Si hay un solo candidato parecido, úsalo. Si hay varios, muéstrale la lista de
 cuál. Luego:
 
 ```bash
-uv run videoqa run "<drive_root>/01_Entrada/<archivo>"
+uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>"
 ```
 
 **Si no nombró ninguno** ("revisa los videos nuevos"):
 
 ```bash
-uv run videoqa watch --once
+uv run --project ~/videoqa videoqa watch --once
 ```
 
 Esto revisa todo lo que haya pendiente en `01_Entrada/`, uno por uno.

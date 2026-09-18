@@ -1,18 +1,21 @@
 ---
-name: estado
-description: Muestra cómo va la cola de videos - cuántos están pendientes, los últimos aprobados y con errores, y si la revisión automática está funcionando. Úsalo cuando la persona diga "¿cómo va la cola?", "¿qué hay pendiente?", "estado", "¿está funcionando?" o /estado.
+description: Cuenta cómo va la cola de videos, cuántos hay pendientes, cómo quedaron los últimos y si lo automático está encendido. Úsalo cuando la persona diga "¿cómo va la cola?" o "estado".
+allowed-tools: Bash(ls:*) Bash(tail:*) Bash(launchctl print:*) Bash(cat:*) Read
 ---
 
 # Estado de la revisión
 
-Trabaja desde la raíz del proyecto. Habla en español informal (tú), sin jerga.
+Habla en español informal (tú), sin jerga.
 
-## Paso 1 — Saber dónde está la carpeta de Drive
+## Paso 1 — Saber dónde está todo
+
+El motor vive en `~/videoqa`. Comprueba que existe (`ls ~/videoqa`); si no está, dile "Todavía no
+está instalado: escribe `/aura:instalar`" y termina.
 
 Lee `~/.videoqa/config.yaml` (con Read) y toma el valor de `drive_root`.
 
-Si el archivo no existe, dile: "Todavía no está configurado. Escribe `/instalar` y lo dejamos
-listo en unos minutos." Y termina ahí.
+Si ese archivo no existe, dile: "Todavía no está configurado. Escribe `/aura:instalar` y lo
+dejamos listo en unos minutos." Y termina ahí.
 
 ## Paso 2 — Recoger la información
 
@@ -71,4 +74,4 @@ Reglas:
   aprobados").
 - Si el registro muestra errores repetidos, resúmelos en una frase y propón el siguiente paso.
   Nunca muestres el traceback.
-- Si te preguntan por un video en concreto, `open` su carpeta en Finder.
+- Si te preguntan por un video en concreto, dile que le abres su carpeta en Finder y hazlo.

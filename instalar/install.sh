@@ -4,6 +4,10 @@
 # Se puede volver a ejecutar las veces que haga falta: todo lo que ya esté
 # instalado se salta.
 #
+# Deja listos los programas base (Homebrew, uv, ffmpeg, Claude Code) y el
+# plugin `aura`. El motor en sí (~/videoqa) lo trae después `/aura:instalar`,
+# hablando con Claude.
+#
 set -euo pipefail
 
 # --- utilidades de presentación --------------------------------------------
@@ -20,18 +24,17 @@ abortar() {
   exit 1
 }
 
-# Carpeta donde está este script y raíz del paquete que te pasaron.
-AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PAQUETE="$(cd "$AQUI/.." && pwd)"
-DESTINO="$HOME/videoqa"
+# De dónde se instala el plugin. Se puede apuntar a una copia local para
+# probar:  MARKETPLACE_SOURCE=/ruta/al/repo bash install.sh
+MARKETPLACE="${MARKETPLACE_SOURCE:-hongs05/videoqa}"
 
 printf '\n\033[1m  VideoQA — instalación\033[0m\n'
-printf '  Esto instala lo necesario y copia el programa a tu carpeta personal.\n'
+printf '  Esto instala los programas necesarios y los comandos de Aura.\n'
 printf '  Puede tardar entre 5 y 15 minutos. No cierres la ventana.\n'
 
 # --- 1. Comprobar que es un Mac con chip Apple ------------------------------
 
-paso "1/7  Revisando tu Mac"
+paso "1/5  Revisando tu Mac"
 if [ "$(uname -m)" != "arm64" ]; then
   abortar "Esta herramienta solo funciona en Macs con chip Apple (M1, M2, M3...). Tu Mac tiene un procesador Intel."
 fi
@@ -39,7 +42,7 @@ ok "Mac con chip Apple. Perfecto."
 
 # --- 2. Homebrew ------------------------------------------------------------
 
-paso "2/7  Homebrew (el instalador de programas del Mac)"
+paso "2/5  Homebrew (el instalador de programas del Mac)"
 if [ -x /opt/homebrew/bin/brew ]; then
   ok "Ya estaba instalado."
 else
@@ -65,7 +68,7 @@ fi
 
 # --- 3. uv y ffmpeg ---------------------------------------------------------
 
-paso "3/7  Programas de apoyo (uv y ffmpeg)"
+paso "3/5  Programas de apoyo (uv y ffmpeg)"
 for prog in uv ffmpeg; do
   if command -v "$prog" >/dev/null 2>&1; then
     ok "$prog ya estaba instalado."
@@ -78,7 +81,7 @@ done
 
 # --- 4. Claude Code ---------------------------------------------------------
 
-paso "4/7  Claude Code"
+paso "4/5  Claude Code"
 export PATH="$HOME/.local/bin:$PATH"
 if command -v claude >/dev/null 2>&1; then
   ok "Ya estaba instalado."
@@ -94,37 +97,28 @@ if ! grep -qF "$LINEA_PATH" "$ZPROFILE"; then
   printf '\n%s\n' "$LINEA_PATH" >> "$ZPROFILE"
 fi
 
-# --- 5. Copiar el programa --------------------------------------------------
+# --- 5. El plugin Aura ------------------------------------------------------
 
-paso "5/7  Copiando el programa a tu carpeta personal"
-ORIGEN="$PAQUETE/videoqa-proyecto"
-if [ ! -d "$ORIGEN" ]; then
-  abortar "Falta la carpeta 'videoqa-proyecto' dentro del paquete. Vuelve a descomprimir el archivo .zip completo y ejecuta el instalador desde ahí."
-fi
+paso "5/5  Los comandos de Aura"
+info "Descargando el catálogo..."
+claude plugin marketplace add "$MARKETPLACE" \
+  || abortar "No se pudo descargar el catálogo de plugins. Revisa tu conexión a internet e inténtalo otra vez."
 
-mkdir -p "$DESTINO"
-rsync -a --delete --exclude .venv --exclude .git "$ORIGEN/" "$DESTINO/" \
-  || abortar "No se pudo copiar el programa a $DESTINO."
-ok "Copiado en $DESTINO"
+info "Instalando Aura..."
+claude plugin install aura@videoqa \
+  || abortar "No se pudo instalar el plugin Aura. Revisa tu conexión a internet e inténtalo otra vez."
+ok "Aura instalada."
 
-# --- 6. Preparar Python -----------------------------------------------------
+# --- Siguientes pasos -------------------------------------------------------
 
-paso "6/7  Preparando el motor (Python y librerías)"
-info "Esto es lo que más tarda. Paciencia."
-cd "$DESTINO"
-uv python install 3.12 || abortar "No se pudo instalar Python 3.12."
-uv sync                || abortar "No se pudieron instalar las librerías. Revisa tu conexión a internet e inténtalo otra vez."
-ok "Motor listo."
-
-# --- 7. Siguientes pasos ----------------------------------------------------
-
-paso "7/7  ¡Listo!"
+paso "¡Listo!"
 cat <<'FIN'
 
     Ya está todo instalado. Falta un último paso, y lo haces hablando:
 
-      1. Abre Claude Code en la carpeta ~/videoqa
-      2. Escribe:  /instalar
+      1. Abre Claude (la aplicación, pestaña Code) o escribe `claude` en esta
+         ventana.
+      2. Escribe:  /aura:instalar
       3. Sigue lo que te vaya diciendo (te va a pedir que elijas la carpeta
          de videos de Drive).
 
@@ -137,13 +131,14 @@ respuesta=""
 read -r -p "    ¿Abrir Claude ahora? (s/n) " respuesta || true
 case "${respuesta:-n}" in
   [sSyY]*)
-    printf '\n    Abriendo Claude. Recuerda: escribe  /instalar\n\n'
-    cd "$DESTINO"
+    printf '\n    Abriendo Claude. Recuerda: escribe  /aura:instalar\n\n'
+    cd "$HOME"
     exec claude
     ;;
   *)
-    printf '\n    Sin problema. Cuando quieras, abre la Terminal y escribe:\n'
-    printf '        cd ~/videoqa && claude\n'
-    printf '    y luego  /instalar\n\n'
+    printf '\n    Sin problema. Cuando quieras, abre Claude (app, pestaña Code)\n'
+    printf '    o escribe en la Terminal:\n'
+    printf '        claude\n'
+    printf '    y luego  /aura:instalar\n\n'
     ;;
 esac
