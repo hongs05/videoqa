@@ -1,7 +1,7 @@
 ---
 description: Deja VideoQA listo la primera vez - instala el motor, elige la carpeta de videos de Drive, carga la guía de marca y hace una prueba. Úsalo cuando la persona diga "instalar", "configurar" o "empezar".
 disable-model-invocation: true
-allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(open:*) Bash(cat:*) Read Edit Write
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(brew install:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(uname:*) Bash(df:*) Bash(grep:*) Bash(echo:*) Bash(open:*) Bash(cat:*) Read Edit Write
 ---
 
 # Instalar VideoQA (primera vez)
@@ -32,13 +32,40 @@ df -h ~ | tail -1        # espacio libre
 command -v brew; command -v uv; command -v ffmpeg; command -v claude
 ```
 
-Si falta **cualquiera** de los cuatro, detente y dile exactamente esto:
+Instala tú lo que falte, uno por uno. Anúncialo en una frase: "Faltan un par de programas base,
+los instalo ahora. Tarda unos minutos."
 
-> Falta instalar algunos programas base. Cierra esta ventana, busca el archivo
-> **"Instalar VideoQA.command"** en la carpeta que te pasaron y haz doble clic. Cuando termine,
-> vuelve aquí y escribe `/aura:instalar` otra vez.
+**Si falta `brew`** (Homebrew). Avisa antes: "Este paso te va a pedir la contraseña de tu Mac.
+Es normal: es la contraseña con la que enciendes el ordenador. No verás las letras al escribirla."
 
-No intentes instalarlos tú.
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Después, deja Homebrew disponible en futuras ventanas (si la línea ya está, no la repitas):
+
+```bash
+grep -q 'brew shellenv' ~/.zprofile 2>/dev/null || echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+**Si falta `uv` o `ffmpeg`:**
+
+```bash
+brew install uv ffmpeg
+```
+
+**Si falta `claude`** (el programa que hace la revisión de criterio):
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+grep -q '.local/bin' ~/.zprofile 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zprofile
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Vuelve a comprobar los cuatro con `command -v`. Si alguno sigue faltando después de intentarlo,
+dile en una frase qué falló y que te avise a ti (o a quien le pasó la herramienta) — no insistas
+más de una vez con el mismo comando.
 
 ## Paso 3 — Traer el motor a `~/videoqa`
 
@@ -155,8 +182,7 @@ programa está donde debe.
 command -v claude
 ```
 
-Si no aparece nada, dile: "Falta Claude Code. Haz doble clic en 'Instalar VideoQA.command' y
-cuando termine, vuelve y escribe `/aura:instalar`." Y detente ahí.
+Si no aparece nada, vuelve al Paso 2 e instálalo ahí; no sigas sin él.
 
 Si más adelante algún video vuelve con "la revisión de criterio no se pudo hacer", es que la
 sesión caducó: ábrele una Terminal con `open -a Terminal`, dile que escriba ahí `claude` y siga

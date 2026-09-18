@@ -9,22 +9,23 @@ No hace falta saber nada técnico. Aura instala y maneja el motor por ti.
 
 ## Instalación
 
-Dos comandos en la Terminal (una sola vez):
+**Sin terminal (recomendado).** Con la app de Claude abierta, en la pestaña *Code*:
+
+1. Escribe `/plugin` y pulsa Enter. Se abre el gestor de plugins.
+2. Elige **Add marketplace** y escribe `hongs05/videoqa`.
+3. En la lista, elige **aura** e instálalo.
+4. Escribe `/aura:instalar`.
+
+**Con terminal**, si lo prefieres:
 
 ```bash
 claude plugin marketplace add hongs05/videoqa
 claude plugin install aura@videoqa
 ```
 
-Y después, dentro de Claude:
-
-```
-/aura:instalar
-```
-
-Eso último es la configuración guiada: trae el motor a `~/videoqa`, te pregunta cuál es la
-carpeta de videos de Google Drive, carga tu guía de marca y hace una revisión de prueba. Tarda
-unos minutos y te va contando qué hace.
+`/aura:instalar` es la configuración guiada: instala lo que falte (Homebrew, `uv`, `ffmpeg`),
+trae el motor a `~/videoqa`, te pregunta cuál es la carpeta de videos de Google Drive, carga tu
+guía de marca y hace una revisión de prueba. Tarda unos minutos y te va contando qué hace.
 
 ## Comandos
 
@@ -62,8 +63,8 @@ te resume en dos frases qué cambió.
 - Mac con chip Apple (M1, M2, M3…), macOS 14 o superior.
 - Google Drive para escritorio, con la carpeta del equipo sincronizada.
 - Claude Code con la sesión iniciada (plan Pro o Max).
-- Homebrew, `uv` y `ffmpeg`: los instala el archivo **"Instalar VideoQA.command"** que viene en
-  el paquete de bienvenida, o `brew install uv ffmpeg` si prefieres hacerlo a mano.
+- Homebrew, `uv` y `ffmpeg`: los instala `/aura:instalar` si faltan (te pedirá la contraseña de
+  la Mac para Homebrew). A mano sería `brew install uv ffmpeg`.
 - Unos 10 GB libres: la primera revisión descarga un modelo de voz de ~1,5 GB.
 
 ## Licencia y contacto

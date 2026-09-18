@@ -68,12 +68,12 @@ Si algo no funciona, pregúntale directamente: «no me está revisando nada, ¿q
 
 ## Instalación (una sola vez, ~15 min)
 
-1. Descomprime `VideoQA-demo.zip` y haz **clic derecho → Abrir** sobre `Instalar VideoQA.command`
-   (la primera vez macOS avisa que "procede de un desarrollador no identificado"; con clic
-   derecho → Abrir se puede continuar). Te pedirá la contraseña de la Mac para instalar
-   herramientas.
-2. Cuando termine, abre Claude (la aplicación, pestaña Code) o escribe `claude` en la Terminal, y
-   escribe `/aura:instalar`. Claude te guiará: elegir la carpeta de videos, cargar la guía de
-   marca y hacer una prueba.
+Todo se hace dentro de la aplicación de Claude. No hace falta la Terminal.
+
+1. Instala la app de **Claude** (claude.ai/download) e inicia sesión. Ve a la pestaña **Code**.
+2. Escribe `/plugin` → **Add marketplace** → `hongs05/videoqa` → instala **aura**.
+3. Escribe `/aura:instalar` y sigue lo que te va preguntando: te instala lo que falte (te pedirá
+   la contraseña de la Mac una vez), te deja elegir la carpeta de videos de Drive, carga la guía
+   de marca y hace una revisión de prueba.
 
 Cuando haya una versión nueva, escribe `/aura:actualizar` y se pone al día solo.

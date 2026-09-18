@@ -2,18 +2,17 @@
 
 ## Instalación para no técnicos
 
-Si quien instala no es técnico, no hace falta nada de lo que sigue. Se le entrega el paquete
-`VideoQA-demo.zip` (se genera con `bash scripts/build_demo_zip.sh`) y solo tiene que:
+Si quien instala no es técnico, no hace falta nada de lo que sigue ni pasar por la Terminal:
 
-1. Descomprimir el `.zip` y hacer doble clic en **`Instalar VideoQA.command`** — instala
-   Homebrew, `uv`, `ffmpeg` y Claude Code, y añade el plugin `aura`:
-   ```bash
-   claude plugin marketplace add hongs05/videoqa
-   claude plugin install aura@videoqa
-   ```
-2. Abrir Claude (app, pestaña Code) y escribir **`/aura:instalar`** — configuración guiada: clona
-   el motor en `~/videoqa`, prepara Python, elige la carpeta de Drive, ajusta el modelo de voz
-   según la RAM, carga la guía de marca y hace una prueba.
+1. Instalar la app de **Claude** (claude.ai/download), iniciar sesión, pestaña **Code**.
+2. `/plugin` → *Add marketplace* → `hongs05/videoqa` → instalar **aura**. (Equivalente por
+   terminal: `claude plugin marketplace add hongs05/videoqa && claude plugin install aura@videoqa`.)
+3. Escribir **`/aura:instalar`** — configuración guiada: instala Homebrew/`uv`/`ffmpeg`/CLI si
+   faltan, clona el motor en `~/videoqa`, prepara Python, elige la carpeta de Drive, ajusta el
+   modelo de voz según la RAM, carga la guía de marca y hace una prueba.
+
+El paquete `VideoQA-demo.zip` (`bash scripts/build_demo_zip.sh`) con `Instalar VideoQA.command`
+sigue existiendo como alternativa para Macs donde ni siquiera esté la app de Claude.
 
 A partir de ahí se opera hablando: `/aura:revisar`, `/aura:estado`, `/aura:ajustar`,
 `/aura:activar-automatico`, `/aura:actualizar` (ver `plugins/aura/README.md`). La guía para el
