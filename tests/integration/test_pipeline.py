@@ -133,3 +133,33 @@ def test_genera_reporte_html_cuando_la_regla_esta_activa(tmp_path, fixture_video
     res = process_video(video, s, rules, runner=lambda p, cwd: GOOD_VERDICT)
     assert (res.dest / "reporte.html").exists()
     assert "APROBADO" in (res.dest / "reporte.html").read_text(encoding="utf-8")
+
+
+def test_sin_juez_requerido_el_video_limpio_se_aprueba(tmp_path, fixture_videos, monkeypatch):
+    """Instalaciones de pre-chequeo (sin Claude) tienen que poder decir 🟢."""
+    from videoqa.claude_runner import ClaudeError
+
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "clean")
+    rules = load_rules()
+    rules["juez_requerido"] = False
+
+    def sin_juez(prompt, cwd):
+        raise ClaudeError("no hay juez configurado")
+
+    res = process_video(video, s, rules, runner=sin_juez)
+    assert res.status == "approved", [f.title for f in res.findings]
+    assert res.error is None
+    judge = [f for f in res.findings if f.check == "judge_unavailable"]
+    assert len(judge) == 1 and judge[0].severity == "info"
+
+
+def test_sin_juez_requerido_un_bloqueante_sigue_rechazando(tmp_path, fixture_videos, monkeypatch):
+    from videoqa.claude_runner import ClaudeError
+
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "spelling_color")
+    rules = load_rules()
+    rules["juez_requerido"] = False
+    res = process_video(video, s, rules, runner=lambda p, c: (_ for _ in ()).throw(ClaudeError("sin juez")))
+    assert res.status == "rejected"

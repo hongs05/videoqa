@@ -103,13 +103,22 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
                                  frames["frames"], rules, runner, duration=float(p["duration"]))
         except Exception as e:  # noqa: BLE001 — cualquier fallo del juez (ClaudeError u otro) degrada igual
             log.error("[%s] %s", job.name, e)
+            # Con juez_requerido=false (instalaciones de pre-chequeo, sin Claude)
+            # la ausencia de criterio es lo esperado, no un fallo: el veredicto
+            # sale de los checks automáticos y el video puede aprobarse.
+            opcional = rules.get("juez_requerido", True) is False
             findings = code_findings + [Finding(
-                id="judge-0", type="tecnico", severity=rules["severities"]["judge_unavailable"], t_start=0.0,
-                t_end=float(p["duration"]), title="Revisión de criterio pendiente",
-                detail=f"Claude no pudo revisar este video ({e}). Solo se aplicaron los checks automáticos.",
-                suggestion="Reintentar más tarde o revisar manualmente.", source="code", check="judge_unavailable")]
-            status = "error"
-            judge_error: str | None = str(e)
+                id="judge-0", type="tecnico",
+                severity="info" if opcional else rules["severities"]["judge_unavailable"],
+                t_start=0.0, t_end=float(p["duration"]),
+                title=("Esta revisión no incluye criterio" if opcional else "Revisión de criterio pendiente"),
+                detail=(("Se aplicaron solo los checks automáticos. El criterio (bloopers, "
+                         "inconsistencias, tono) lo aporta la revisión oficial.") if opcional
+                        else f"Claude no pudo revisar este video ({e}). Solo se aplicaron los checks automáticos."),
+                suggestion=("" if opcional else "Reintentar más tarde o revisar manualmente."),
+                source="code", check="judge_unavailable")]
+            status = decide(findings) if opcional else "error"
+            judge_error: str | None = None if opcional else str(e)
         else:
             dismissed = {d["id"] for d in verdict["dismissed"]}
             findings = [f for f in code_findings if f.id not in dismissed] + verdict["findings"]
