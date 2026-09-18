@@ -49,6 +49,13 @@ def iou(a: list[float], b: list[float]) -> float:
 
 
 def ocr_frame(path: Path) -> list[dict]:
+    """Delega en el backend registrado (Apple Vision por defecto)."""
+    from videoqa import backends
+
+    return backends.get_ocr()(path)
+
+
+def _ocr_frame_apple(path: Path) -> list[dict]:
     from ocrmac import ocrmac  # import tardío: pyobjc/Vision
 
     results = ocrmac.OCR(str(path), language_preference=["es-ES"], recognition_level="accurate").recognize()

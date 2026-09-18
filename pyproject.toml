@@ -7,13 +7,18 @@ dependencies = [
     "pyyaml>=6.0",
     "numpy>=1.26",
     "pillow>=10.0",
+    "gspread>=6.0",
+    "google-auth>=2.0",
+]
+
+[project.optional-dependencies]
+# Pila de Apple: solo se instala en macOS. En otras plataformas el motor
+# funciona con los backends que registre quien lo use (ver videoqa/backends.py).
+macos = [
     "mlx-whisper>=0.4",
     "ocrmac>=1.0",
     # Usado directamente por videoqa/checks/spelling.py (NSSpellChecker de AppKit).
-    # Llegaba de rebote como dependencia de ocrmac; se declara explícito.
     "pyobjc-framework-Cocoa>=10",
-    "gspread>=6.0",
-    "google-auth>=2.0",
 ]
 
 [project.scripts]

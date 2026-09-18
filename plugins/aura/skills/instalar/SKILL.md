@@ -89,7 +89,7 @@ Luego prepara Python y las librerías. Avisa que esto tarda un par de minutos:
 
 ```bash
 uv python install 3.12
-uv sync --project ~/videoqa
+uv sync --extra macos --project ~/videoqa
 ```
 
 ## Paso 4 — Permisos para no estar preguntando todo el rato

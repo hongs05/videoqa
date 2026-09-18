@@ -36,7 +36,7 @@ mano, así que prefiero no pisarlo. Avisa a quien te pasó la herramienta." Y te
 ## Paso 3 — Volver a preparar las librerías
 
 ```bash
-uv sync --project ~/videoqa
+uv sync --extra macos --project ~/videoqa
 ```
 
 ## Paso 4 — Actualizar los comandos de Aura

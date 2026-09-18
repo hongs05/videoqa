@@ -1042,12 +1042,16 @@ source = { editable = "." }
 dependencies = [
     { name = "google-auth" },
     { name = "gspread" },
-    { name = "mlx-whisper" },
     { name = "numpy" },
-    { name = "ocrmac" },
     { name = "pillow" },
-    { name = "pyobjc-framework-cocoa" },
     { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+macos = [
+    { name = "mlx-whisper" },
+    { name = "ocrmac" },
+    { name = "pyobjc-framework-cocoa" },
 ]
 
 [package.dev-dependencies]
@@ -1059,13 +1063,14 @@ dev = [
 requires-dist = [
     { name = "google-auth", specifier = ">=2.0" },
     { name = "gspread", specifier = ">=6.0" },
-    { name = "mlx-whisper", specifier = ">=0.4" },
+    { name = "mlx-whisper", marker = "extra == 'macos'", specifier = ">=0.4" },
     { name = "numpy", specifier = ">=1.26" },
-    { name = "ocrmac", specifier = ">=1.0" },
+    { name = "ocrmac", marker = "extra == 'macos'", specifier = ">=1.0" },
     { name = "pillow", specifier = ">=10.0" },
-    { name = "pyobjc-framework-cocoa", specifier = ">=10" },
+    { name = "pyobjc-framework-cocoa", marker = "extra == 'macos'", specifier = ">=10" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
+provides-extras = ["macos"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
