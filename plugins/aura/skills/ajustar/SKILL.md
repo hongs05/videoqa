@@ -1,14 +1,18 @@
 ---
-name: ajustar
-description: Cambia el comportamiento de la revisión - añadir palabras que no se deben marcar como error (nombres de marca, jerga) y subir o bajar la gravedad de un tipo de problema. Úsalo cuando la persona diga "no marques la palabra X", "que el silencio sea bloqueante", "esto no debería ser un error", "qué reglas hay" o /ajustar.
+description: Cambia qué se marca como error, añade palabras válidas (marcas, jerga) y sube o baja la gravedad de un problema. Úsalo cuando la persona diga "no marques X" o "que el silencio bloquee".
+disable-model-invocation: true
+allowed-tools: Read Edit Bash(launchctl kickstart:*)
 ---
 
 # Ajustar la revisión
 
-Trabaja desde la raíz del proyecto. Habla en español informal (tú), sin jerga.
+Habla en español informal (tú), sin jerga.
 
 **Regla de oro: siempre muestra el cambio en palabras sencillas y pregunta "¿Lo aplico?" antes
 de tocar ningún archivo.** Espera un sí explícito.
+
+El motor vive en `~/videoqa`: las reglas están en `~/videoqa/reglas.yaml`. Si esa carpeta no
+existe, dile "Todavía no está instalado: escribe `/aura:instalar`" y termina.
 
 Lee `drive_root` de `~/.videoqa/config.yaml` cuando lo necesites.
 
@@ -32,7 +36,7 @@ Si te piden ver el glosario, léelo y muéstralo como una lista simple.
 
 ## Caso B — "Que X sea bloqueante / que X sea solo un aviso"
 
-Es `reglas.yaml`, sección `severities`. Traduce del castellano al nombre técnico:
+Es `~/videoqa/reglas.yaml`, sección `severities`. Traduce del castellano al nombre técnico:
 
 | Lo que dice la persona | Clave en `reglas.yaml` |
 | --- | --- |
@@ -54,12 +58,12 @@ Y los niveles: **bloqueante** = `blocker` (manda el video a 02_Con_errores), **a
 
 1. Di el cambio en claro: "Ahora los silencios largos son un **aviso**. Los voy a poner como
    **bloqueante**: a partir de ahora un video con un silencio largo no se aprueba. ¿Lo aplico?"
-2. Con el sí, edita `reglas.yaml` con Edit (solo esa línea).
-3. Si la revisión automática está encendida, reiníciala para que tome el cambio:
+2. Con el sí, edita `~/videoqa/reglas.yaml` con Edit (solo esa línea).
+3. Si la revisión automática está encendida, reiníciala para que tome el cambio. Si responde que
+   no existe el servicio, es que está apagada: no es un error, no lo menciones.
 
 ```bash
-launchctl print gui/$UID/com.videoqa.watcher 2>/dev/null | grep -q 'state = running' \
-  && launchctl kickstart -k gui/$UID/com.videoqa.watcher
+launchctl kickstart -k gui/$UID/com.videoqa.watcher
 ```
 
 4. Confirma: "Cambiado. Los videos que revise a partir de ahora usan la regla nueva; los que ya
@@ -67,7 +71,8 @@ launchctl print gui/$UID/com.videoqa.watcher 2>/dev/null | grep -q 'state = runn
 
 ## Caso C — "¿Qué reglas hay?"
 
-Lee `reglas.yaml` y muéstralo traducido, agrupado por gravedad. Nada de YAML a la vista:
+Lee `~/videoqa/reglas.yaml` y muéstralo traducido, agrupado por gravedad. Nada de YAML a la
+vista:
 
 > **Bloquean la publicación (🔴):**
 > - Palabras mal escritas

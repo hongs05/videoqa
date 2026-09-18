@@ -1,0 +1,20 @@
+{
+  "name": "aura",
+  "version": "1.0.0",
+  "description": "Revisa tus videos antes de publicarlos y te dice en español qué corregir y en qué segundo. Instala y maneja el motor VideoQA hablando, sin comandos técnicos.",
+  "author": {
+    "name": "Jeffrey Molin Rocha"
+  },
+  "homepage": "https://github.com/hongs05/videoqa",
+  "repository": "https://github.com/hongs05/videoqa",
+  "license": "MIT",
+  "keywords": [
+    "video",
+    "qa",
+    "revision",
+    "espanol",
+    "redes-sociales",
+    "reels",
+    "tiktok"
+  ]
+}

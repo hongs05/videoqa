@@ -1,25 +1,27 @@
 ---
-name: activar-automatico
-description: Enciende o apaga la revisión automática, para que los videos que se suban a 01_Entrada se revisen solos sin pedírselo a nadie. Úsalo cuando la persona diga "activa la revisión automática", "que lo haga solo", "desactiva lo automático", "apaga el robot" o /activar-automatico.
+description: Enciende o apaga la revisión automática, para que los videos que subas a 01_Entrada se revisen solos. Úsalo cuando la persona diga "que lo haga solo", "activa lo automático" o "apaga el robot".
+disable-model-invocation: true
+allowed-tools: Bash(sed:*) Bash(launchctl:*) Bash(command -v:*) Bash(mkdir:*) Read
 ---
 
 # Revisión automática (encender / apagar)
 
-Trabaja desde la raíz del proyecto (donde está `pyproject.toml`). Habla en español informal (tú).
+Habla en español informal (tú). El motor vive en `~/videoqa`; si esa carpeta no existe, dile
+"Todavía no está instalado: escribe `/aura:instalar`" y termina.
 
 Primero averigua si te piden **encenderla** o **apagarla**. Si no queda claro, pregunta.
 
 ## Encender
 
 1. Comprueba que ya está configurado: si no existe `~/.videoqa/config.yaml`, dile que escriba
-   `/instalar` primero y termina.
+   `/aura:instalar` primero y termina.
 
-2. Instala el agente. `__PROJECT__` es la raíz del proyecto (la carpeta actual):
+2. Instala el agente. El proyecto es siempre `$HOME/videoqa`:
 
 ```bash
 mkdir -p ~/Library/LaunchAgents
-sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$(pwd)|g" -e "s|__UV__|$(command -v uv)|g" \
-  launchd/com.videoqa.watcher.plist > ~/Library/LaunchAgents/com.videoqa.watcher.plist
+sed -e "s|__HOME__|$HOME|g" -e "s|__PROJECT__|$HOME/videoqa|g" -e "s|__UV__|$(command -v uv)|g" \
+  "$HOME/videoqa/launchd/com.videoqa.watcher.plist" > ~/Library/LaunchAgents/com.videoqa.watcher.plist
 launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.videoqa.watcher.plist
 ```
 
@@ -44,10 +46,12 @@ launchctl print gui/$UID/com.videoqa.watcher 2>/dev/null | grep -q 'state = runn
 > Cuando quieras saber cómo va, pregúntame "¿cómo va la cola?".
 
 5. Si no arrancó, no muestres el error en crudo. Mira `~/.videoqa/launchd.err.log` (últimas
-   líneas), resume la causa en una frase y propón el siguiente paso. Las causas habituales:
+   líneas, con Read), resume la causa en una frase y propón el siguiente paso. Las causas
+   habituales:
    - `uv` no está instalado → "Falta un programa base. Haz doble clic en 'Instalar
      VideoQA.command' y me dices."
-   - falta la configuración → "Todavía no elegiste la carpeta de videos. Escribe `/instalar`."
+   - falta la configuración → "Todavía no elegiste la carpeta de videos. Escribe
+     `/aura:instalar`."
 
 ## Apagar
 
