@@ -7,7 +7,13 @@ from pathlib import Path
 import yaml
 
 RULES_PATH = Path(__file__).resolve().parent.parent / "reglas.yaml"
-SKILL_PATH = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "revisor-video" / "SKILL.md"
+_PROMPT_PAQUETE = Path(__file__).resolve().parent / "prompts" / "revisor-video.md"
+_PROMPT_REPO = Path(__file__).resolve().parent.parent / ".claude" / "skills" / "revisor-video" / "SKILL.md"
+
+# El prompt del juez viaja dentro del paquete para que funcione instalado con
+# pip; el de .claude/skills es el que lee Claude Code, y un test comprueba que
+# los dos no se desincronicen.
+SKILL_PATH = _PROMPT_PAQUETE if _PROMPT_PAQUETE.exists() else _PROMPT_REPO
 
 
 def videoqa_home() -> Path:
