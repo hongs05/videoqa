@@ -37,3 +37,6 @@ claude:
   max_frames: 15
   frame_height: 720
   timeout_s: 600
+
+salida:
+  reporte_html: false   # true para generar también reporte.html (Windows lo activa)

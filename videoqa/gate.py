@@ -36,7 +36,7 @@ def deliver(job: Job, settings: Settings, status: str) -> Path:
     # Primero los artefactos, el video AL FINAL: si copiar reporte/guion/evidencia falla,
     # el video sigue en 01_Entrada/ y el watcher puede reintentar en vez de dejarlo en
     # una carpeta de destino a medio armar.
-    for name in ("reporte.md", "guion_real.md"):
+    for name in ("reporte.md", "reporte.html", "guion_real.md"):
         src = job.path(name)
         if src.exists():
             shutil.copy2(src, dest / name)

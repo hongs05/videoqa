@@ -96,5 +96,6 @@ def test_write_evidence_clears_previous_run(tmp_path):
 def test_build_report_writes_file(tmp_path):
     video = tmp_path / "v.mp4"; video.write_bytes(b"x")
     job = Job(video, tmp_path / "jobs")
-    p = build_report(job, PROBE, [], "approved")
+    p, evidencia = build_report(job, PROBE, [], "approved")
+    assert evidencia == {}
     assert p == job.path("reporte.md") and "APROBADO" in p.read_text()
