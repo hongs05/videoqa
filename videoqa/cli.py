@@ -11,7 +11,7 @@ import yaml
 
 from videoqa.brand import build_brand
 from videoqa.claude_runner import Runner, run_claude
-from videoqa.config import Settings, default_config_path, load_rules, load_settings, videoqa_home
+from videoqa.config import Settings, default_config_path, load_all_settings, load_rules, load_settings, videoqa_home
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
@@ -60,11 +60,18 @@ def cmd_init(args) -> int:
         data["sheet_id"] = args.sheet_id
     if args.service_account:
         data["service_account_json"] = str(Path(args.service_account).expanduser())
+    extras = [Path(e).expanduser() for e in (getattr(args, "carpeta_extra", None) or [])]
+    extras = [e for e in extras if e != drive]
+    if extras:
+        data["carpetas_extra"] = [str(e) for e in extras]
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(yaml.safe_dump(data, allow_unicode=True))
-    for d in ("_config", "01_Entrada", "02_Con_errores", "03_Aprobado"):
-        (drive / d).mkdir(parents=True, exist_ok=True)
+    for raiz in [drive, *extras]:
+        for d in ("_config", "01_Entrada", "02_Con_errores", "03_Aprobado"):
+            (raiz / d).mkdir(parents=True, exist_ok=True)
     print(f"Config escrita en {cfg_path}\nCarpetas creadas en {drive}")
+    for e in extras:
+        print(f"Carpeta adicional lista en {e}")
     return 0
 
 
@@ -86,8 +93,9 @@ def cmd_run(args) -> int:
 
 
 def cmd_watch(args) -> int:
-    settings, rules = load_settings(), load_rules()
-    watch(settings, rules, make_runner(settings, rules), sheet=make_sheet(settings), once=args.once)
+    carpetas, rules = load_all_settings(), load_rules()
+    principal = carpetas[0]
+    watch(carpetas, rules, make_runner(principal, rules), sheet=make_sheet(principal), once=args.once)
     return 0
 
 
@@ -99,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--drive-root", required=True)
     p.add_argument("--sheet-id")
     p.add_argument("--service-account")
+    p.add_argument("--carpeta-extra", action="append", metavar="RUTA",
+                   help="carpeta adicional a vigilar (p. ej. una local de pruebas); repetible")
     p.set_defaults(fn=cmd_init)
     p = sub.add_parser("brand", help="regenerar brand.json desde guia_de_marca.pdf")
     p.set_defaults(fn=cmd_brand)

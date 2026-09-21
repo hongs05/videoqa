@@ -59,6 +59,12 @@ No hace falta usar los comandos: puedes escribirle normal, como a una persona. P
 
 Si algo no funciona, pregúntale directamente: «no me está revisando nada, ¿qué pasa?».
 
+## Tu propia carpeta de pruebas (opcional)
+
+Además de la carpeta de Drive, puedes tener una carpeta tuya donde revisar tus montajes antes de
+subirlos. Funciona igual —con sus tres subcarpetas y su semáforo— pero **nadie del equipo la ve
+y no aparece en el tablero**. Para activarla, dile a Claude: «quiero una carpeta de pruebas».
+
 ## Dos cosas que conviene saber
 
 - **La primera revisión tarda bastante más** (descarga un modelo de voz de ~1,5 GB). Solo pasa

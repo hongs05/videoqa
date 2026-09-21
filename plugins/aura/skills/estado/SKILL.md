@@ -76,6 +76,12 @@ Reglas:
   Nunca muestres el traceback.
 - Si te preguntan por un video en concreto, dile que le abres su carpeta en Finder y hazlo.
 
+## Si hay más de una carpeta
+
+Mira `carpetas_extra` en `~/.videoqa/config.yaml`. Si hay alguna, repite el recuento para cada
+una y preséntalas por separado, con su nombre: "En la de Drive hay 2 esperando; en la tuya de
+pruebas, ninguna." No las mezcles en un solo número.
+
 ## Comprobar que Claude puede dar criterio
 
 La sesión de Claude caduca cada cierto tiempo y, cuando pasa, los videos vuelven con "revisión de

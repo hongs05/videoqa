@@ -82,5 +82,35 @@ def load_settings(path: Path | None = None) -> Settings:
     return Settings(**kwargs)
 
 
+def load_all_settings(path: Path | None = None) -> list[Settings]:
+    """Todas las carpetas que esta instalación vigila.
+
+    La primera es la principal (`drive_root`, normalmente la de Drive); detrás van
+    las de `carpetas_extra`, pensadas para pre-chequeo local. Comparten motor y
+    carpeta de trabajos, pero **solo la principal escribe en el Sheet**: el tablero
+    es del equipo, y una carpeta personal no tiene por qué aparecer ahí.
+    """
+    path = path or Path(os.environ.get("VIDEOQA_CONFIG", default_config_path()))
+    principal = load_settings(path)
+    data = yaml.safe_load(path.read_text()) or {}
+
+    todas = [principal]
+    vistas = {principal.drive_root}
+    for cruda in data.get("carpetas_extra") or []:
+        ruta = Path(str(cruda)).expanduser()
+        if ruta in vistas:
+            continue
+        vistas.add(ruta)
+        todas.append(Settings(
+            drive_root=ruta,
+            jobs_dir=principal.jobs_dir,
+            sheet_id=None,
+            service_account_json=None,
+            claude_bin=principal.claude_bin,
+            whisper_model=principal.whisper_model,
+        ))
+    return todas
+
+
 def load_rules(path: Path = RULES_PATH) -> dict:
     return yaml.safe_load(path.read_text())
