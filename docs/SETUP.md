@@ -5,8 +5,10 @@
 Si quien instala no es técnico, no hace falta nada de lo que sigue ni pasar por la Terminal:
 
 1. Instalar la app de **Claude** (claude.ai/download), iniciar sesión, pestaña **Code**.
-2. `/plugin` → *Add marketplace* → `hongs05/videoqa` → instalar **aura**. (Equivalente por
-   terminal: `claude plugin marketplace add hongs05/videoqa && claude plugin install aura@videoqa`.)
+2. Ajustes → Plugins → botón **«Agregar ▾»** → **«Agregar desde un repositorio»** →
+   `hongs05/videoqa` → instalar **aura**. Escribirlo en el buscador NO funciona: ahí solo busca
+   entre los catálogos ya añadidos. (Equivalente por terminal:
+   `claude plugin marketplace add hongs05/videoqa && claude plugin install aura@videoqa`.)
 3. Escribir **`/aura:instalar`** — configuración guiada: instala Homebrew/`uv`/`ffmpeg`/CLI si
    faltan, clona el motor en `~/videoqa`, prepara Python, elige la carpeta de Drive, ajusta el
    modelo de voz según la RAM, carga la guía de marca y hace una prueba.

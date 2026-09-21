@@ -9,23 +9,22 @@ No hace falta saber nada técnico. Aura instala y maneja el motor por ti.
 
 ## Instalación
 
-**Sin terminal (recomendado).** Con la app de Claude abierta, en la pestaña *Code*:
+1. Abre la app de **Claude** e inicia sesión.
+2. Ve a **Ajustes → Plugins** (o escribe `/plugin`).
+3. Arriba a la derecha, pulsa el botón **«Agregar ▾»**.
+4. En la ventana que se abre, elige **«Agregar desde un repositorio»**
+   — la opción que dice "Sincroniza un marketplace de plugins desde un repositorio de GitHub".
+   ⚠️ **No escribas nada en el buscador**: ahí solo busca entre los catálogos que ya tienes, y
+   este todavía no lo es. Es el error más común.
+5. Pega exactamente: `hongs05/videoqa`
+6. Ya aparece **aura** en la lista: pulsa **Agregar**.
+7. Vuelve a Claude y escribe `/aura:instalar`.
 
-1. Escribe `/plugin` y pulsa Enter. Se abre el gestor de plugins.
-2. Elige **Add marketplace** y escribe `hongs05/videoqa`.
-3. En la lista, elige **aura** e instálalo.
-4. Escribe `/aura:instalar`.
-
-**Con terminal**, si lo prefieres:
+Si prefieres no pelear con la interfaz, por Terminal es un solo pegado y hace lo mismo:
 
 ```bash
-claude plugin marketplace add hongs05/videoqa
-claude plugin install aura@videoqa
+claude plugin marketplace add hongs05/videoqa && claude plugin install aura@videoqa
 ```
-
-`/aura:instalar` es la configuración guiada: instala lo que falte (Homebrew, `uv`, `ffmpeg`),
-trae el motor a `~/videoqa`, te pregunta cuál es la carpeta de videos de Google Drive, carga tu
-guía de marca y hace una revisión de prueba. Tarda unos minutos y te va contando qué hace.
 
 ## Comandos
 

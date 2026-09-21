@@ -66,14 +66,22 @@ Si algo no funciona, pregúntale directamente: «no me está revisando nada, ¿q
 - **Con la revisión automática encendida, la Mac tiene que quedar encendida y con la sesión
   abierta.** La pantalla bloqueada vale; cerrar sesión o apagarla, no.
 
-## Instalación (una sola vez, ~15 min)
+## Instalación (una sola vez)
 
-Todo se hace dentro de la aplicación de Claude. No hace falta la Terminal.
+1. Abre la app de **Claude** e inicia sesión.
+2. Ve a **Ajustes → Plugins** (o escribe `/plugin`).
+3. Arriba a la derecha, pulsa el botón **«Agregar ▾»**.
+4. En la ventana que se abre, elige **«Agregar desde un repositorio»**
+   — la opción que dice "Sincroniza un marketplace de plugins desde un repositorio de GitHub".
+   ⚠️ **No escribas nada en el buscador**: ahí solo busca entre los catálogos que ya tienes, y
+   este todavía no lo es. Es el error más común.
+5. Pega exactamente: `hongs05/videoqa`
+6. Ya aparece **aura** en la lista: pulsa **Agregar**.
+7. Vuelve a Claude y escribe `/aura:instalar`.
 
-1. Instala la app de **Claude** (claude.ai/download) e inicia sesión. Ve a la pestaña **Code**.
-2. Escribe `/plugin` → **Add marketplace** → `hongs05/videoqa` → instala **aura**.
-3. Escribe `/aura:instalar` y sigue lo que te va preguntando: te instala lo que falte (te pedirá
-   la contraseña de la Mac una vez), te deja elegir la carpeta de videos de Drive, carga la guía
-   de marca y hace una revisión de prueba.
+Si prefieres no pelear con la interfaz, por Terminal es un solo pegado y hace lo mismo:
 
-Cuando haya una versión nueva, escribe `/aura:actualizar` y se pone al día solo.
+```bash
+claude plugin marketplace add hongs05/videoqa && claude plugin install aura@videoqa
+```
+
