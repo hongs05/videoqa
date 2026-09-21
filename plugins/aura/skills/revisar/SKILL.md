@@ -49,7 +49,7 @@ ofrécele ver el estado general.
 ## Paso 3 — Leer el reporte
 
 Cada video termina en una carpeta con su nombre, dentro de `02_Con_errores/` (si tiene problemas
-serios) o `03_Aprobado/`. Ahí dentro está `reporte.md`. Léelo con Read.
+serios) o `03_Aprobado/`. Ahí dentro está `reporte.html` (o `reporte.md` si prefieres texto). Léelo con Read.
 
 ## Paso 4 — Explicarlo
 

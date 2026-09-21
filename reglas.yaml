@@ -39,4 +39,4 @@ claude:
   timeout_s: 600
 
 salida:
-  reporte_html: false   # true para generar también reporte.html (Windows lo activa)
+  reporte_html: true    # genera reporte.html con las fotos de evidencia dentro

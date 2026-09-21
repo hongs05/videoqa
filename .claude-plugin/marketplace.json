@@ -9,7 +9,7 @@
       "name": "aura",
       "source": "./plugins/aura",
       "description": "Revisa tus videos antes de publicarlos y te dice en español qué corregir y en qué segundo. Instala y maneja el motor VideoQA hablando, sin comandos técnicos.",
-      "version": "1.0.1"
+      "version": "1.0.2"
     }
   ]
 }
