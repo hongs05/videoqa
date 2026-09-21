@@ -131,6 +131,24 @@ uv run --project ~/videoqa videoqa init --drive-root "<ruta elegida>"
 Dile en plano: "Listo. Dentro de esa carpeta creé tres subcarpetas: **01_Entrada** (ahí suben los
 videos), **02_Con_errores** y **03_Aprobado**."
 
+### Carpeta propia de pruebas (opcional)
+
+Pregúntale: "¿Quieres además una carpeta tuya, aparte de la de Drive, para revisar tus propios
+montajes antes de subirlos? Nadie del equipo la ve."
+
+Si dice que sí, ábrele el selector otra vez y vuelve a lanzar `init` con las dos:
+
+```bash
+osascript -e 'POSIX path of (choose folder with prompt "Elige tu carpeta de pruebas")'
+uv run --project ~/videoqa videoqa init --drive-root "<carpeta de Drive>" --carpeta-extra "<carpeta de pruebas>"
+```
+
+Explícale: "Las dos funcionan igual y se revisan solas. La diferencia es que lo que dejes en la
+tuya no lo ve el equipo ni aparece en el tablero."
+
+Si dice que no, sigue sin más: se puede añadir después diciéndome "quiero una carpeta de
+pruebas".
+
 ## Paso 6 — Ajustar el modelo de voz a la memoria de la Mac
 
 Si `hw.memsize` es **8 GB o menos** (8589934592 bytes o menos), añade o cambia esta línea en

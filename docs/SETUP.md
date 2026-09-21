@@ -52,6 +52,17 @@ uv run --project ~/videoqa videoqa init --drive-root "<ruta a Revision_Videos>"
 ```
 Esto crea `_config/`, `01_Entrada/`, `02_Con_errores/`, `03_Aprobado/` y `~/.videoqa/config.yaml`.
 
+**Varias carpetas a la vez.** Se pueden vigilar la de Drive y una local (pre-chequeo personal)
+en la misma Mac, con `--carpeta-extra` repetible:
+
+```bash
+uv run --project ~/videoqa videoqa init --drive-root "<ruta a Drive>" --carpeta-extra ~/Documentos/MisPruebas
+```
+
+Cada carpeta tiene sus propias `01_Entrada/02_Con_errores/03_Aprobado` y se procesan por turnos.
+**Solo la principal escribe en el Sheet**: el tablero es del equipo. La regla de que una carpeta
+de Drive la vigile una sola Mac no cambia.
+
 Copia la guía de marca a `_config/guia_de_marca.pdf` (Canva → Descargar → PDF) y, opcionalmente,
 crea `_config/glosario.txt` con una palabra por línea (nombres propios, marcas, jerga válida).
 

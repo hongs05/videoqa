@@ -105,3 +105,63 @@ def test_watch_reprocesses_reuploaded_file_with_different_size(tmp_path):
     video_path.write_bytes(b"1234567890")
     watch(s, {}, runner=lambda p, c: "", once=True, process=fake_process, sleep=lambda x: None, stable_wait_s=0)
     assert seen == [("c.mp4", 1), ("c.mp4", 10)]
+
+
+def test_watch_recorre_varias_carpetas(tmp_path):
+    """Una Mac puede vigilar su carpeta local y la de Drive a la vez."""
+    drive = Settings(drive_root=tmp_path / "drive", jobs_dir=tmp_path / "jobs")
+    local = Settings(drive_root=tmp_path / "local", jobs_dir=tmp_path / "jobs")
+    drive.entrada.mkdir(parents=True)
+    local.entrada.mkdir(parents=True)
+    (drive.entrada / "de_drive.mp4").write_bytes(b"1")
+    (local.entrada / "de_local.mp4").write_bytes(b"1")
+
+    vistos = []
+
+    def fake_process(video, settings, rules, runner, sheet=None):
+        vistos.append((video.name, settings.drive_root.name))
+        video.unlink()
+        return Result("approved", [], None)
+
+    watch([drive, local], {}, runner=lambda p, c: "", once=True, process=fake_process,
+          sleep=lambda x: None, stable_wait_s=0)
+    assert sorted(vistos) == [("de_drive.mp4", "drive"), ("de_local.mp4", "local")]
+
+
+def test_cada_video_se_procesa_con_los_settings_de_su_carpeta(tmp_path):
+    """El video local no debe entregarse en las carpetas de Drive."""
+    drive = Settings(drive_root=tmp_path / "drive", jobs_dir=tmp_path / "jobs", sheet_id="abc")
+    local = Settings(drive_root=tmp_path / "local", jobs_dir=tmp_path / "jobs")
+    drive.entrada.mkdir(parents=True)
+    local.entrada.mkdir(parents=True)
+    (local.entrada / "mio.mp4").write_bytes(b"1")
+
+    recibidos = []
+
+    def fake_process(video, settings, rules, runner, sheet=None):
+        recibidos.append(settings)
+        video.unlink()
+        return Result("approved", [], None)
+
+    watch([drive, local], {}, runner=lambda p, c: "", once=True, process=fake_process,
+          sleep=lambda x: None, stable_wait_s=0)
+    assert len(recibidos) == 1
+    assert recibidos[0].drive_root == tmp_path / "local"
+    assert recibidos[0].sheet_id is None
+
+
+def test_watch_sigue_aceptando_una_sola_carpeta(tmp_path):
+    """Compatibilidad: quien pase un Settings suelto tiene que seguir funcionando."""
+    s = Settings(drive_root=tmp_path / "drive", jobs_dir=tmp_path / "jobs")
+    s.entrada.mkdir(parents=True)
+    (s.entrada / "a.mp4").write_bytes(b"1")
+    vistos = []
+
+    def fake_process(video, settings, rules, runner, sheet=None):
+        vistos.append(video.name)
+        video.unlink()
+        return Result("approved", [], None)
+
+    watch(s, {}, runner=lambda p, c: "", once=True, process=fake_process,
+          sleep=lambda x: None, stable_wait_s=0)
+    assert vistos == ["a.mp4"]
