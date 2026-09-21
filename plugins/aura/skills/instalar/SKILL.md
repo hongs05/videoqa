@@ -172,11 +172,11 @@ cp ~/videoqa/tests/fixtures/brand.json "<carpeta de videos>/_config/brand.json"
 Y explícale: "Dejé una marca de ejemplo para que puedas probar. Cuando tengas el PDF de la guía,
 dímelo y lo cargamos de verdad — mientras tanto, los avisos de color no van a servirte mucho."
 
-## Paso 8 — Comprobar que Claude tiene sesión iniciada
+## Paso 8 — Dejar la sesión de Claude que no caduque
 
-La revisión de criterio necesita que Claude esté instalado y con la sesión abierta. Si estás
-hablando con la persona dentro de Claude, la sesión ya está iniciada: basta con confirmar que el
-programa está donde debe.
+La revisión de criterio la hace Claude, y para eso necesita una sesión válida. **La sesión normal
+caduca cada pocos días**: cuando eso pasa, los videos vuelven con "no se pudo revisar del todo".
+Para evitarlo se crea una credencial de larga duración, pensada para que funcione sola.
 
 ```bash
 command -v claude
@@ -184,28 +184,53 @@ command -v claude
 
 Si no aparece nada, vuelve al Paso 2 e instálalo ahí; no sigas sin él.
 
-Si más adelante algún video vuelve con "la revisión de criterio no se pudo hacer", es que la
-sesión caducó: ábrele una Terminal con `open -a Terminal`, dile que escriba ahí `claude` y siga
-los pasos en el navegador, y que luego vuelva.
+Luego dile esto, tal cual:
+
+> Falta un paso que tienes que hacer tú, porque es iniciar sesión y yo no manejo contraseñas.
+> Te abro la Terminal: ahí escribe **claude setup-token** y pulsa Enter. Se abre el navegador,
+> autorizas con tu cuenta de Claude, y listo. Eso deja la sesión preparada para que las
+> revisiones funcionen solas sin que tengas que volver a entrar cada semana.
+
+```bash
+open -a Terminal
+```
+
+Espera a que te diga que terminó y compruébalo:
+
+```bash
+claude auth status
+```
+
+Si dice `"loggedIn": true`, sigue. Si no, pídele que repita el paso: sin esto la parte de
+criterio no va a funcionar (el resto de la revisión sí).
 
 ## Paso 9 — Prueba
 
-Si existe `~/videoqa/tests/fixtures/out/clean.mp4`:
+Revisa el video de prueba que viene con el motor. Avisa antes: "Voy a revisar un video de
+prueba. La primera vez descarga el modelo de voz, así que puede tardar varios minutos. Es solo
+esta vez."
 
 ```bash
-uv run --project ~/videoqa videoqa run ~/videoqa/tests/fixtures/out/clean.mp4
+uv run --project ~/videoqa videoqa run ~/videoqa/tests/fixtures/prueba_instalacion.mp4
 ```
 
-Avisa antes: "Voy a revisar un video de prueba. La primera vez descarga el modelo de voz, así que
-puede tardar varios minutos. Es solo esta vez."
+Ese video trae **errores a propósito** (la palabra "Aprobecha" mal escrita y en un rojo que no
+está en la paleta). Según lo que salga:
 
-Si el archivo no existe, salta este paso sin mencionarlo.
+- 🔴 **NO APROBADO** — perfecto, todo funciona. Es el resultado esperado.
+- ❌ **ERROR** con "revisión de criterio pendiente" — los checks automáticos van bien, pero
+  Claude no pudo dar su criterio: casi siempre es la sesión del Paso 8. Vuelve a ese paso.
+- 🟢 **APROBADO** — algo no está revisando. Mira `~/.videoqa/videoqa.log` y dile que te avise.
 
-Cuando termine, abre la carpeta del resultado en Finder:
+Cuando termine, abre la carpeta del resultado en Finder y explícale lo que ves, con el semáforo
+y el segundo de cada problema:
 
 ```bash
-open "<carpeta del resultado>"
+open "<carpeta de videos>/02_Con_errores/prueba_instalacion"
 ```
+
+Dile que el archivo `reporte.html` es el que conviene abrir: lleva las fotos de cada error
+dentro. Y que ese video de prueba lo puede borrar cuando quiera.
 
 ## Paso 10 — Cierre
 

@@ -75,3 +75,20 @@ Reglas:
 - Si el registro muestra errores repetidos, resúmelos en una frase y propón el siguiente paso.
   Nunca muestres el traceback.
 - Si te preguntan por un video en concreto, dile que le abres su carpeta en Finder y hazlo.
+
+## Comprobar que Claude puede dar criterio
+
+La sesión de Claude caduca cada cierto tiempo y, cuando pasa, los videos vuelven con "revisión de
+criterio pendiente". Compruébalo siempre:
+
+```bash
+claude auth status
+```
+
+Si `loggedIn` es `false`, díselo en una frase y dale la solución concreta:
+
+> La sesión de Claude caducó, por eso los últimos videos no traen la parte de criterio. Se
+> arregla en un minuto: te abro la Terminal, escribe ahí **claude setup-token** y autoriza en el
+> navegador.
+
+Y ábrele la Terminal con `open -a Terminal`.

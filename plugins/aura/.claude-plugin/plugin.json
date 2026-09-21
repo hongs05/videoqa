@@ -1,6 +1,6 @@
 {
   "name": "aura",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Revisa tus videos antes de publicarlos y te dice en español qué corregir y en qué segundo. Instala y maneja el motor VideoQA hablando, sin comandos técnicos.",
   "author": {
     "name": "Jeffrey Molin Rocha"
