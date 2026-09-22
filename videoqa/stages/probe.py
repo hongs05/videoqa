@@ -11,7 +11,7 @@ FFPROBE_TIMEOUT_S = 900
 
 def run_ffprobe(video: Path) -> dict:
     # Sin wrapper: un TimeoutExpired sube tal cual y lo atrapa el pipeline (except Exception),
-    # que deja el video en 01_Entrada/ con estado ❌ Error.
+    # que deja el video en 01_Entrada/ con estado ⏸️ Pendiente.
     cmd = ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(video)]
     return json.loads(subprocess.run(cmd, capture_output=True, text=True, check=True,
                                      timeout=FFPROBE_TIMEOUT_S).stdout)

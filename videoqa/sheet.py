@@ -13,7 +13,7 @@ from videoqa.report import fmt_t
 log = logging.getLogger("videoqa")
 
 HEADERS = ["Video", "Fecha", "Estado", "Bloqueantes", "Advertencias", "Reporte", "Video (ruta)", "Duración"]
-STATUS_LABEL = {"processing": "⏳", "approved": "🟢", "rejected": "🔴", "error": "❌ Error"}
+STATUS_LABEL = {"processing": "⏳", "approved": "🟢", "rejected": "🔴", "error": "⏸️ Pendiente"}
 MAX_ATTEMPTS = 5
 
 

@@ -105,10 +105,46 @@ def test_judge_failure_yields_error_status_in_con_errores(tmp_path, fixture_vide
     # Sin juez, sus checks NO pueden declararse pasados.
     assert "## ⏳ Pendientes de revisión (Claude no disponible)" in report
     assert "Bloopers" not in report.split("## ✅ Checks pasados")[1].split("## ⏳")[0]
-    assert ws.rows[1][2] == "❌ Error"
+    assert ws.rows[1][2] == "⏸️ Pendiente"
     # La columna "Reporte" del Sheet lleva el motivo, no una ruta.
     assert ws.rows[1][5].startswith("Claude no disponible:") and "rate limit" in ws.rows[1][5]
     assert res.dest is not None and res.error
+
+def test_judge_failure_por_sesion_caducada_escribe_doctor_json(tmp_path, fixture_videos, monkeypatch):
+    # Si el juez falla porque la sesión de Claude caducó, el pipeline deja constancia en
+    # doctor.json para que el hook SessionStart de la próxima sesión avise sin esperar a
+    # que alguien lance `videoqa doctor` a mano.
+    monkeypatch.setenv("VIDEOQA_HOME", str(tmp_path / "home"))
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "clean")
+    from videoqa.claude_runner import ClaudeError
+    from videoqa.config import videoqa_home
+
+    def failing(p, cwd):
+        raise ClaudeError("claude -p salió con 1: Failed to authenticate: OAuth session expired")
+    res = process_video(video, s, load_rules(), runner=failing)
+    assert res.status == "error"
+    doctor = json.loads((videoqa_home() / "doctor.json").read_text())
+    assert doctor["ok"] is False
+    assert doctor["motivo"] == "la sesión caducó o no está guardada"
+    assert "at" in doctor
+
+
+def test_judge_failure_por_otro_motivo_no_toca_doctor_json(tmp_path, fixture_videos, monkeypatch):
+    # Un fallo que no tiene pinta de sesión caducada (p. ej. una salida rara de `claude -p`)
+    # no debe hacer que el hook empiece a avisar de sesión caducada por error.
+    monkeypatch.setenv("VIDEOQA_HOME", str(tmp_path / "home"))
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, "clean")
+    from videoqa.claude_runner import ClaudeError
+    from videoqa.config import videoqa_home
+
+    def failing(p, cwd):
+        raise ClaudeError("salida no JSON")
+    res = process_video(video, s, load_rules(), runner=failing)
+    assert res.status == "error"
+    assert not (videoqa_home() / "doctor.json").exists()
+
 
 def test_judge_raising_plain_exception_still_degrades_gracefully(tmp_path, fixture_videos, monkeypatch):
     stub_transcript(monkeypatch)
@@ -121,7 +157,7 @@ def test_judge_raising_plain_exception_still_degrades_gracefully(tmp_path, fixtu
     assert res.status == "error"
     assert "judge_unavailable" in {f.check for f in res.findings}
     assert (s.con_errores / "clean" / "clean.mp4").exists()
-    assert ws.rows[-1][2] == "❌ Error"
+    assert ws.rows[-1][2] == "⏸️ Pendiente"
 
 def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos):
     s, _ = make_env(tmp_path, fixture_videos, "clean")
@@ -130,7 +166,7 @@ def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos):
     res = process_video(bad, s, load_rules(), runner=lambda p, cwd: GOOD_VERDICT,
                         sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
     assert res.status == "error" and res.error and bad.exists()
-    assert ws.rows[-1][2] == "❌ Error" and ws.rows[-1][5]
+    assert ws.rows[-1][2] == "⏸️ Pendiente" and ws.rows[-1][5]
 
 
 def test_modo_preparar_deja_el_video_en_entrada_y_escribe_el_prompt(tmp_path, fixture_videos, monkeypatch):

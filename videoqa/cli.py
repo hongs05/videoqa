@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import logging.handlers
 import os
 import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -23,6 +21,7 @@ from videoqa.config import (
     load_token,
     videoqa_home,
 )
+from videoqa.doctor_state import write_doctor_state
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
@@ -131,13 +130,14 @@ def cmd_doctor(args) -> int:
             pass
     ok, motivo = True, "sesión guardada" if con_token else "sesión del CLI"
     try:
-        run_claude("Responde solo con la palabra: ok", videoqa_home(), claude_bin=claude_bin, timeout=90, allowed_tools=())
+        run_claude("Responde solo con la palabra: ok", videoqa_home(), claude_bin=claude_bin, timeout=180, allowed_tools=())
     except ClaudeError as e:
         ok = False
-        motivo = "no encuentro el programa claude" if "no se pudo ejecutar" in str(e) else "la sesión caducó o no hay token guardado"
-    videoqa_home().mkdir(parents=True, exist_ok=True)
-    (videoqa_home() / "doctor.json").write_text(json.dumps(
-        {"ok": ok, "motivo": motivo, "at": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False))
+        motivo = "no encuentro el programa claude" if "no se pudo ejecutar" in str(e) else "la sesión caducó o no está guardada"
+    except Exception as e:  # noqa: BLE001 — cualquier otro fallo (timeout de red, permisos…) también se reporta
+        ok = False
+        motivo = f"no pude comprobarlo: {type(e).__name__}"
+    write_doctor_state(ok, motivo)
     print(f"CRITERIO {'OK' if ok else 'SIN SESIÓN'} · {motivo}")
     return 0 if ok else 1
 

@@ -78,7 +78,12 @@ uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>" --ver
 ```
 
    Y explica el resultado como siempre (Paso 5). Si vuelve a salir pendiente, es que el JSON no
-   era válido: vuelve al punto 2 una sola vez.
+   era válido. El video ya está de vuelta en `02_Con_errores/<nombre>/` (la ruta de
+   `01_Entrada/<archivo>` ya no existe), así que reinténtalo **una sola vez** desde el punto 1,
+   lanzando otra vez el modo "hasta el juez" sobre el archivo dentro de `02_Con_errores/<nombre>/`,
+   escribiendo un `veredicto.json` corregido y repitiendo este punto 4. Si falla una segunda vez,
+   dile en una frase que no se pudo completar la revisión de criterio y que diga **"arregla la
+   sesión"**.
 
 5. Al final, avísale en una frase: "La sesión de Claude está caducada, por eso esta vez hice yo
    la revisión de criterio. Dime **"arregla la sesión"** cuando puedas y así lo automático vuelve

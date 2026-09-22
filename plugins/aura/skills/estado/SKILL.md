@@ -17,6 +17,10 @@ Lee `~/.videoqa/config.yaml` (con Read) y toma el valor de `drive_root`.
 Si ese archivo no existe, dile: "Todavía no está configurado. Escribe `/aura:instalar` y lo
 dejamos listo en unos minutos." Y termina ahí.
 
+Si cualquier comando `videoqa` responde con algo como "invalid choice", "unrecognized arguments"
+o "error: argument", es que el motor instalado es más viejo que esta guía. Dile "Hay que poner
+el motor al día: escribe `/aura:actualizar`" y termina ahí, sin seguir con el resto de pasos.
+
 ## Paso 2 — Recoger la información
 
 ```bash
@@ -91,7 +95,7 @@ Compruébalo siempre:
 uv run --project ~/videoqa videoqa doctor
 ```
 
-Si no empieza por `CRITERIO OK`, díselo en una frase y dale la salida:
+Si no empieza por `CRITERIO OK`, díselo en una frase (no le enseñes la salida del comando):
 
 > La sesión de Claude caducó, por eso los últimos videos salen pendientes. Dime **"arregla la
 > sesión"** y lo dejamos listo en un minuto.

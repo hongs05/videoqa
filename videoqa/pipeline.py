@@ -12,6 +12,7 @@ from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
 from videoqa.claude_runner import Runner
 from videoqa.config import Settings
+from videoqa.doctor_state import write_doctor_state
 from videoqa.findings import Finding, save_findings
 from videoqa.gate import decide, deliver
 from videoqa.job import Job
@@ -118,6 +119,11 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
                                  frames["frames"], rules, runner, duration=float(p["duration"]))
         except Exception as e:  # noqa: BLE001 — cualquier fallo del juez (ClaudeError u otro) degrada igual
             log.error("[%s] %s", job.name, e)
+            texto_error = str(e).lower()
+            if "authenticate" in texto_error or "oauth" in texto_error:
+                # Deja constancia para que el hook SessionStart de la próxima sesión avise
+                # sin esperar a que alguien lance `videoqa doctor` a mano.
+                write_doctor_state(False, "la sesión caducó o no está guardada")
             # Con juez_requerido=false (instalaciones de pre-chequeo, sin Claude)
             # la ausencia de criterio es lo esperado, no un fallo: el veredicto
             # sale de los checks automáticos y el video puede aprobarse.

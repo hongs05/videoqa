@@ -201,7 +201,7 @@ def test_doctor_falla_si_claude_no_responde(monkeypatch, capsys):
     monkeypatch.setattr(cli, "run_claude", boom)
     assert cli.main(["doctor"]) == 1
     out = capsys.readouterr().out.strip()
-    assert out.startswith("CRITERIO SIN SESIÓN · la sesión caducó o no hay token guardado")
+    assert out.startswith("CRITERIO SIN SESIÓN · la sesión caducó o no está guardada")
     assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is False
 
 
@@ -211,3 +211,15 @@ def test_doctor_falla_si_no_hay_binario(monkeypatch, capsys):
     monkeypatch.setattr(cli, "run_claude", boom)
     assert cli.main(["doctor"]) == 1
     assert "no encuentro el programa claude" in capsys.readouterr().out
+
+
+def test_doctor_falla_ante_un_error_inesperado(monkeypatch, capsys):
+    # Un fallo que no es ClaudeError (p. ej. un timeout de red al margen del propio
+    # subprocess) no debe tirar `videoqa doctor` con una traza: se reporta igual.
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(cli, "run_claude", boom)
+    assert cli.main(["doctor"]) == 1
+    out = capsys.readouterr().out.strip()
+    assert out.startswith("CRITERIO SIN SESIÓN · no pude comprobarlo")
+    assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is False

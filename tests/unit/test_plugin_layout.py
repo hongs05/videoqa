@@ -19,7 +19,7 @@ PLUGIN = ROOT / "plugins" / "aura" / ".claude-plugin" / "plugin.json"
 SKILLS_DIR = ROOT / "plugins" / "aura" / "skills"
 
 # Skills con efectos secundarios: solo las lanza la persona, nunca el modelo.
-SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar", "sesion"}
+SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar"}
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
@@ -84,6 +84,14 @@ def test_frontmatter_del_skill(skill: Path) -> None:
         assert "disable-model-invocation" not in fm, (
             f"{skill}: déjalo al valor por defecto para que Claude pueda proponerlo"
         )
+
+
+def test_sesion_es_invocable_por_el_modelo() -> None:
+    # El hook y el resto de skills le dicen a la persona que diga «arregla la sesión»;
+    # si el modelo no puede cargar la skill por sí solo, esa frase no hace nada.
+    skill = SKILLS_DIR / "sesion" / "SKILL.md"
+    fm = frontmatter(skill)
+    assert "disable-model-invocation" not in fm, f"{skill}: tiene que ser invocable por el modelo"
 
 
 def test_skill_del_motor_sigue_en_su_sitio() -> None:
