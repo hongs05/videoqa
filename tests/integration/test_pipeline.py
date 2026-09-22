@@ -37,6 +37,14 @@ def stub_transcript(monkeypatch):
         "language": "es", "text": "Aprovecha la oferta de verano solo por esta semana" if has_audio else "",
         "segments": [{"start": 0.5, "end": 4.0, "text": "Aprovecha la oferta de verano solo por esta semana"}] if has_audio else []})
 
+def _setup(tmp_path, fixture_videos, monkeypatch, name):
+    """Preparación mínima (settings, rules, video) reutilizada por los tests que solo
+    necesitan un fixture listo en Entrada con transcripción falsa, sin más lógica."""
+    stub_transcript(monkeypatch)
+    s, video = make_env(tmp_path, fixture_videos, name)
+    return s, load_rules(), video
+
+
 def test_spelling_color_fixture_is_rejected(tmp_path, fixture_videos, monkeypatch):
     stub_transcript(monkeypatch)
     s, video = make_env(tmp_path, fixture_videos, "spelling_color")
@@ -93,7 +101,7 @@ def test_judge_failure_yields_error_status_in_con_errores(tmp_path, fixture_vide
     res = process_video(video, s, load_rules(), runner=failing, sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
     assert res.status == "error" and "judge_unavailable" in {f.check for f in res.findings}
     report = (s.con_errores / "clean" / "reporte.md").read_text()
-    assert report.startswith("# ❌")
+    assert report.startswith("# ⏸️")
     # Sin juez, sus checks NO pueden declararse pasados.
     assert "## ⏳ Pendientes de revisión (Claude no disponible)" in report
     assert "Bloopers" not in report.split("## ✅ Checks pasados")[1].split("## ⏳")[0]
@@ -123,6 +131,31 @@ def test_corrupt_video_stays_in_entrada(tmp_path, fixture_videos):
                         sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "p.json"))
     assert res.status == "error" and res.error and bad.exists()
     assert ws.rows[-1][2] == "❌ Error" and ws.rows[-1][5]
+
+
+def test_modo_preparar_deja_el_video_en_entrada_y_escribe_el_prompt(tmp_path, fixture_videos, monkeypatch):
+    settings, rules, video = _setup(tmp_path, fixture_videos, monkeypatch, "spelling_color")
+
+    def juez_no_debe_llamarse(prompt, cwd):
+        raise AssertionError("en modo preparar no se llama al juez")
+    res = process_video(video, settings, rules, juez_no_debe_llamarse, modo="preparar")
+    assert res.status == "pending" and res.dest is None
+    assert video.exists()
+    job_dir = settings.jobs_dir / video.stem
+    assert (job_dir / "judge_prompt.md").exists()
+    assert (job_dir / "judge_input" / "findings_code.json").exists()
+
+
+def test_veredicto_externo_sustituye_al_juez(tmp_path, fixture_videos, monkeypatch):
+    settings, rules, video = _setup(tmp_path, fixture_videos, monkeypatch, "spelling_color")
+    veredicto = json.dumps({"findings": [], "guion_real_md": "# Guion\n\nHola.",
+                            "confirmed_code_findings": [], "dismissed_code_findings": []})
+
+    def juez_no_debe_llamarse(prompt, cwd):
+        raise AssertionError("con veredicto externo no se llama al juez")
+    res = process_video(video, settings, rules, juez_no_debe_llamarse, veredicto_text=veredicto)
+    assert res.status in ("approved", "rejected")
+    assert res.dest is not None and (res.dest / "guion_real.md").read_text().startswith("# Guion")
 
 
 def test_genera_reporte_html_cuando_la_regla_esta_activa(tmp_path, fixture_videos, monkeypatch):

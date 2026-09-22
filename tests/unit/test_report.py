@@ -35,7 +35,7 @@ def test_render_approved_report():
 
 def test_render_error_report():
     md = render_report("x.mp4", PROBE, [fnd("j", "warning", 0, check="judge_unavailable")], "error", {}, datetime(2026, 9, 11))
-    assert md.startswith("# ❌ x.mp4 — ERROR")
+    assert md.startswith("# ⏸️ x.mp4 — PENDIENTE (sin criterio de Claude)")
 
 
 def test_judge_checks_are_pending_not_passed_when_judge_unavailable():

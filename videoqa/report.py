@@ -20,7 +20,8 @@ CHECK_LABELS = {
     "ortografia": "Ortografía (criterio)", "marca": "Reglas de marca (criterio)", "inconsistencia": "Guion ↔ pantalla",
     "blooper": "Bloopers", "tecnico": "Elementos extraños en frame",
 }
-STATUS = {"approved": ("🟢", "APROBADO"), "rejected": ("🔴", "NO APROBADO"), "error": ("❌", "ERROR")}
+STATUS = {"approved": ("🟢", "APROBADO"), "rejected": ("🔴", "NO APROBADO"),
+          "error": ("⏸️", "PENDIENTE (sin criterio de Claude)")}
 
 # Etiqueta en español de cada `Finding.type`, para la línea `[m:ss] Tipo — título`.
 TYPE_LABELS = {"ortografia": "Ortografía", "marca": "Marca", "inconsistencia": "Inconsistencia",

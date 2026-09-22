@@ -7,6 +7,7 @@ from videoqa import cli
 from videoqa.claude_runner import ClaudeError
 from videoqa.cli import main, make_sheet
 from videoqa.config import Settings, token_path, videoqa_home
+from videoqa.pipeline import Result
 
 def test_init_writes_config_and_folders(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
@@ -26,7 +27,7 @@ def test_run_uses_injected_process(tmp_path, monkeypatch):
     video = drive / "01_Entrada" / "v.mp4"; video.write_bytes(b"x")
     import videoqa.cli as cli
     from videoqa.pipeline import Result
-    monkeypatch.setattr(cli, "process_video", lambda v, s, r, runner, sheet=None: Result("approved", [], drive / "03_Aprobado" / "v"))
+    monkeypatch.setattr(cli, "process_video", lambda v, s, r, runner, sheet=None, **kw: Result("approved", [], drive / "03_Aprobado" / "v"))
     assert main(["run", str(video)]) == 0
 
 def test_run_copia_a_entrada_si_viene_de_fuera(tmp_path, monkeypatch, capsys):
@@ -40,7 +41,7 @@ def test_run_copia_a_entrada_si_viene_de_fuera(tmp_path, monkeypatch, capsys):
     import videoqa.cli as cli
     from videoqa.pipeline import Result
 
-    def fake_process(video, settings, rules, runner, sheet=None):
+    def fake_process(video, settings, rules, runner, sheet=None, **kw):
         visto["video"] = video
         return Result("approved", [], drive / "03_Aprobado" / "clip")
     monkeypatch.setattr(cli, "process_video", fake_process)
@@ -60,7 +61,7 @@ def test_run_no_copia_si_ya_esta_en_entrada(tmp_path, monkeypatch):
     import videoqa.cli as cli
     from videoqa.pipeline import Result
 
-    def fake_process(video, settings, rules, runner, sheet=None):
+    def fake_process(video, settings, rules, runner, sheet=None, **kw):
         visto["video"] = video
         return Result("approved", [], drive / "03_Aprobado" / "clip")
     monkeypatch.setattr(cli, "process_video", fake_process)
@@ -74,8 +75,42 @@ def test_run_returns_1_on_error(tmp_path, monkeypatch):
     main(["init", "--drive-root", str(tmp_path / "drive")])
     import videoqa.cli as cli
     from videoqa.pipeline import Result
-    monkeypatch.setattr(cli, "process_video", lambda v, s, r, runner, sheet=None: Result("error", [], None, "boom"))
+    monkeypatch.setattr(cli, "process_video", lambda v, s, r, runner, sheet=None, **kw: Result("error", [], None, "boom"))
     assert main(["run", str(tmp_path / "x.mp4")]) == 1
+
+
+def test_run_hasta_juez_imprime_el_job_dir(tmp_path, monkeypatch, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    capsys.readouterr()  # descarta la salida de `init`; solo interesa la de `run`
+    video = drive / "01_Entrada" / "clip.mp4"
+    video.write_bytes(b"x")
+    visto = {}
+
+    def fake_process(v, settings, rules, runner, sheet=None, modo="completo", veredicto_text=None):
+        visto["modo"] = modo
+        return Result("pending", [], None)
+    monkeypatch.setattr(cli, "process_video", fake_process)
+    assert main(["run", str(video), "--hasta-juez"]) == 0
+    assert visto["modo"] == "preparar"
+    assert capsys.readouterr().out.strip().startswith("JUEZ_PENDIENTE ")
+
+
+def test_run_con_veredicto_lo_pasa_como_texto(tmp_path, monkeypatch):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    video = drive / "01_Entrada" / "clip.mp4"
+    video.write_bytes(b"x")
+    ver = tmp_path / "veredicto.json"
+    ver.write_text('{"findings": []}')
+    visto = {}
+
+    def fake_process(v, settings, rules, runner, sheet=None, modo="completo", veredicto_text=None):
+        visto["texto"] = veredicto_text
+        return Result("approved", [], drive / "03_Aprobado" / "clip")
+    monkeypatch.setattr(cli, "process_video", fake_process)
+    assert main(["run", str(video), "--veredicto", str(ver)]) == 0
+    assert visto["texto"] == '{"findings": []}'
 
 
 @pytest.mark.parametrize("kwargs,falta", [

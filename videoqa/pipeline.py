@@ -15,7 +15,7 @@ from videoqa.config import Settings
 from videoqa.findings import Finding, save_findings
 from videoqa.gate import decide, deliver
 from videoqa.job import Job
-from videoqa.judge import run_judge
+from videoqa.judge import JudgeError, prepare_judge, run_judge
 from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
 from videoqa.stages.color import add_colors
@@ -30,7 +30,7 @@ log = logging.getLogger("videoqa")
 
 @dataclass
 class Result:
-    status: str                 # approved | rejected | error
+    status: str                 # approved | rejected | error | pending
     findings: list[Finding]
     dest: Path | None
     error: str | None = None
@@ -45,7 +45,8 @@ def _rel(settings: Settings, path: Path | None) -> str:
         return str(path)
 
 
-def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None) -> Result:
+def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None,
+                  modo: str = "completo", veredicto_text: str | None = None) -> Result:
     sheet = sheet or SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
     job = Job(video, settings.jobs_dir)
     # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
@@ -91,6 +92,20 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         log.exception("[%s] fallo de procesamiento", job.name)
         sheet.write(row_for(video.name, "error", [], "", _rel(settings, video), 0, datetime.now(), note=msg))
         return Result("error", [], None, msg)
+
+    if modo == "preparar":
+        try:
+            prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
+                          frames["frames"], rules, duration=float(p["duration"]))
+        except JudgeError as e:
+            log.error("[%s] %s", job.name, e)
+            return Result("error", code_findings, None, str(e))
+        log.info("[%s] entradas del juez listas en %s (esperando veredicto)", job.name, job.dir)
+        return Result("pending", code_findings, None, None)
+
+    if veredicto_text is not None:
+        texto = veredicto_text
+        runner = lambda prompt, cwd: texto  # noqa: E731 — el veredicto ya viene escrito
 
     # Etapa 2: juicio de Claude + reporte + entrega + Sheet. Cualquier fallo de aquí en
     # adelante ya no debe dejar el video en limbo: se registra como error y, si el juez

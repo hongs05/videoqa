@@ -105,7 +105,13 @@ def cmd_run(args) -> int:
         shutil.copy2(video, destino)
         print(f"Copiado a 01_Entrada: {video.name}")
         video = destino
-    res = process_video(video, settings, rules, make_runner(settings, rules), sheet=make_sheet(settings))
+    modo = "preparar" if getattr(args, "hasta_juez", False) else "completo"
+    veredicto_text = Path(args.veredicto).expanduser().read_text(encoding="utf-8") if getattr(args, "veredicto", None) else None
+    res = process_video(video, settings, rules, make_runner(settings, rules), sheet=make_sheet(settings),
+                        modo=modo, veredicto_text=veredicto_text)
+    if res.status == "pending":
+        print(f"JUEZ_PENDIENTE {settings.jobs_dir / video.stem}")
+        return 0
     if res.dest:
         print(f"{res.status.upper()} → {res.dest / 'reporte.md'}")
     else:
@@ -158,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_brand)
     p = sub.add_parser("run", help="procesar un video")
     p.add_argument("video")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--hasta-juez", action="store_true",
+                   help="preparar las entradas del juez y parar (la sesión de Claude hace de juez)")
+    g.add_argument("--veredicto", metavar="JSON", help="reanudar con un veredicto ya escrito")
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser("watch", help="vigilar 01_Entrada/")
     p.add_argument("--once", action="store_true")

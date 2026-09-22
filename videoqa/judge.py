@@ -183,17 +183,33 @@ def parse_verdict(text: str, require_guion: bool = True) -> dict:
     return data
 
 
-def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
-              code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
-              skill_path: Path = SKILL_PATH, duration: float | None = None) -> dict:
+def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
+                  code_findings: list[Finding], frames: list[dict], rules: dict,
+                  skill_path: Path = SKILL_PATH, duration: float | None = None) -> str:
+    """Deja en el job dir todo lo que el juez necesita y devuelve el prompt.
+
+    Lo usa `run_judge` (juez por `claude -p`) y también `videoqa run --hasta-juez`,
+    donde el juez es la propia sesión de Claude que lee `judge_prompt.md`.
+    """
     try:
         manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules)
         skill_text = skill_path.read_text(encoding="utf-8")
-    except (OSError, ValueError, Exception) as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
+    except Exception as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
         raise JudgeError(f"no se pudieron preparar las entradas del juez: {e}") from e
     if duration is None:
         duration = max([f["t"] for f in frames], default=0.0)
-    base_prompt = build_prompt(skill_text, manifest, duration)
+    prompt = build_prompt(skill_text, manifest, duration)
+    job.path("judge_prompt.md").write_text(prompt, encoding="utf-8")
+    job.path("judge_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    return prompt
+
+
+def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
+              code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
+              skill_path: Path = SKILL_PATH, duration: float | None = None) -> dict:
+    base_prompt = prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
+                                skill_path=skill_path, duration=duration)
+    manifest = json.loads(job.path("judge_manifest.json").read_text())
     # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.
     require_guion = bool(transcript.get("segments"))
     # Artefactos de la corrida anterior: si el juez falla ahora, un `guion_real.md` o
