@@ -259,7 +259,8 @@ Dile qué puede hacer a partir de ahora, con estas palabras:
   falla, resume en una frase qué pasó y propón el siguiente paso concreto. Ejemplos:
   - Modelo de voz no descarga → "No pude descargar el modelo de voz, parece cosa de internet.
     ¿Lo intentamos de nuevo?"
-  - Claude sin sesión → "Claude no tiene la sesión iniciada. Vamos a hacer el login otra vez."
+  - Claude sin sesión → "La sesión de Claude está caducada. Dime «arregla la sesión» y lo
+    dejamos listo en un minuto."
   - Carpeta de Drive sin sincronizar → "Google Drive todavía está sincronizando esa carpeta.
     Espera a que termine y me dices."
 - Para mostrar archivos, usa `open <carpeta>` y di "te lo abrí en Finder".

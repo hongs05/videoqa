@@ -51,17 +51,6 @@ ofrécele ver el estado general.
 Cada video termina en una carpeta con su nombre, dentro de `02_Con_errores/` (si tiene problemas
 serios) o `03_Aprobado/`. Ahí dentro está `reporte.html` (o `reporte.md` si prefieres texto). Léelo con Read.
 
-## Paso 4 — Explicarlo
-
-Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
-
-```bash
-open "<carpeta del video revisado>"
-```
-
-Y menciona: "Dentro también está `guion_real.md`: es lo que de verdad se dice en el video,
-transcrito y limpio, por si te sirve para el copy o los subtítulos."
-
 ## Paso 4 — Si un video vuelve ⏸️ PENDIENTE (sin criterio de Claude)
 
 Eso significa que los checks automáticos pasaron pero el juez no pudo dar criterio. **No le digas
@@ -88,12 +77,23 @@ uv run --project ~/videoqa videoqa run "<drive_root>/02_Con_errores/<nombre>/<ar
 uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>" --veredicto "<carpeta>/veredicto.json"
 ```
 
-   Y explica el resultado como siempre (Paso 3). Si vuelve a salir pendiente, es que el JSON no
+   Y explica el resultado como siempre (Paso 5). Si vuelve a salir pendiente, es que el JSON no
    era válido: vuelve al punto 2 una sola vez.
 
 5. Al final, avísale en una frase: "La sesión de Claude está caducada, por eso esta vez hice yo
    la revisión de criterio. Dime **"arregla la sesión"** cuando puedas y así lo automático vuelve
    a funcionar solo."
+
+## Paso 5 — Explicarlo
+
+Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
+
+```bash
+open "<carpeta del video revisado>"
+```
+
+Y menciona: "Dentro también está `guion_real.md`: es lo que de verdad se dice en el video,
+transcrito y limpio, por si te sirve para el copy o los subtítulos."
 
 ## Cómo explicar el resultado
 
@@ -122,9 +122,9 @@ Reglas:
 - Si el reporte menciona una evidencia, di "abre la foto de evidencia" y nombra el archivo.
 - Si son varios videos, empieza con un resumen de una línea ("Revisé 4: 2 aprobados, 2 con cosas
   que corregir") y luego el detalle de cada uno.
-- Si el reporte tiene la sección "Pendientes de revisión (Claude no disponible)", explícalo así:
-  "Los chequeos automáticos pasaron, pero la revisión de criterio no se pudo hacer esta vez.
-  Vuelve a pedírmelo más tarde para tener el veredicto completo."
+- Si el reporte tiene la sección "Pendientes de revisión (Claude no disponible)", o su título
+  empieza por ⏸️, **no digas "pídemelo más tarde"**: sigue el Paso 4 ("Si un video vuelve ⏸️
+  PENDIENTE") y explica el resultado final una vez que hayas hecho tú de juez.
 - **Nunca muestres un traceback ni un error en crudo.** Resume en una frase y propón el siguiente
   paso: "No pude leer el video, parece que Drive aún lo está sincronizando. Espera a que termine
   el icono de Drive y me dices."
