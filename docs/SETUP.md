@@ -128,6 +128,12 @@ de Claude, edita `~/videoqa/.claude/skills/revisor-video/SKILL.md`.
 
 ## Problemas comunes
 - **El video no se procesa**: ¿está la Mac encendida y Drive terminó de sincronizar? Mira `videoqa.log`.
-- **`❌ Error` en el Sheet**: la columna Reporte tiene el motivo. Si es Claude (límite de uso), el
-  video queda en `02_Con_errores/` con reporte parcial; resúbelo más tarde.
+- **`⏸️ Pendiente` en el Sheet**: la columna Reporte tiene el motivo (Claude no respondió o la
+  sesión caducó). El video queda en `02_Con_errores/` con reporte parcial.
+- **`⏳ En espera` en el Sheet**: Claude llegó a su límite de uso. El video sigue en `01_Entrada/`
+  sin reporte y el watcher pausa la cola hasta la hora de reinicio que da el mensaje (guardada en
+  `~/.videoqa/espera.json`; si no la da, una hora). No hay que hacer nada.
 - **Falsos positivos de ortografía**: añade la palabra a `_config/glosario.txt`.
+- **Falsos positivos o errores que se escapan en general**: `/aura:corregir` (o
+  `videoqa corregir VIDEO --hallazgo ID --motivo "…"` / `--no-detectado`). Las correcciones van a
+  `_config/aprendizaje.jsonl` y el juez recibe en cada video las ~20 más parecidas.

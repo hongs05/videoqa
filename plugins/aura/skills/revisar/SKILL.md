@@ -89,6 +89,18 @@ uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>" --ver
    la revisión de criterio. Dime **"arregla la sesión"** cuando puedas y así lo automático vuelve
    a funcionar solo."
 
+## Paso 4b — Si sale `EN_ESPERA` (Claude sin uso disponible)
+
+Significa que la cuenta de Claude llegó a su límite de uso. **El video no tiene la culpa ni se
+ha revisado a medias**: sigue en `01_Entrada` y no tiene reporte. No sigas el Paso 4. Díselo así:
+
+> "Claude se quedó sin uso disponible hasta las **7:20 pm**. Los videos esperan en la carpeta de
+> entrada; si la revisión automática está encendida se revisan solos a esa hora, y si no,
+> pídemelo después."
+
+Con `watch --once`, en la salida aparece "Claude sin uso disponible hasta las HH:MM": igual, los
+que quedaban siguen esperando en `01_Entrada`.
+
 ## Paso 5 — Explicarlo
 
 Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
@@ -96,6 +108,10 @@ Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
 ```bash
 open "<carpeta del video revisado>"
 ```
+
+Si hay algo marcado que no es error (o se le pasó algo), invítale a decírtelo: "Si algo de esto
+no es un error, dímelo (por ejemplo: «SUSHICD es el logo de la camiseta») y lo aprendo para los
+próximos videos." Eso lo resuelve `/aura:corregir`.
 
 Y menciona: "Dentro también está `guion_real.md`: es lo que de verdad se dice en el video,
 transcrito y limpio, por si te sirve para el copy o los subtítulos."

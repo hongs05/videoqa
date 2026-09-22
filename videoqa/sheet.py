@@ -13,15 +13,16 @@ from videoqa.report import fmt_t
 log = logging.getLogger("videoqa")
 
 HEADERS = ["Video", "Fecha", "Estado", "Bloqueantes", "Advertencias", "Reporte", "Video (ruta)", "Duración"]
-STATUS_LABEL = {"processing": "⏳", "approved": "🟢", "rejected": "🔴", "error": "⏸️ Pendiente"}
+STATUS_LABEL = {"processing": "⏳", "approved": "🟢", "rejected": "🔴", "error": "⏸️ Pendiente",
+                "waiting": "⏳ En espera"}
 MAX_ATTEMPTS = 5
 
 
 def row_for(video_name: str, status: str, findings: list[Finding], report_path: str, video_path: str,
             duration: float, when: datetime, note: str = "") -> list[str]:
     c = count_by_severity(findings)
-    return [video_name, f"{when:%Y-%m-%d %H:%M}", STATUS_LABEL[status], str(c["blocker"]) if status != "processing" else "",
-            str(c["warning"]) if status != "processing" else "", note or report_path, video_path, fmt_t(duration) if duration else ""]
+    return [video_name, f"{when:%Y-%m-%d %H:%M}", STATUS_LABEL[status], str(c["blocker"]) if status not in ("processing", "waiting") else "",
+            str(c["warning"]) if status not in ("processing", "waiting") else "", note or report_path, video_path, fmt_t(duration) if duration else ""]
 
 
 class SheetClient:

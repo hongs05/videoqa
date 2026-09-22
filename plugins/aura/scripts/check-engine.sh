@@ -15,6 +15,7 @@ HOME_VQA="${VIDEOQA_HOME:-$HOME/.videoqa}"
 CONFIG="$HOME_VQA/config.yaml"
 TOKEN="$HOME_VQA/token"
 DOCTOR="$HOME_VQA/doctor.json"
+ESPERA="$HOME_VQA/espera.json"
 
 if [ ! -d "$MOTOR" ]; then
   echo "Aura: motor no instalado → escribe /aura:instalar"
@@ -65,5 +66,15 @@ else
   SESION="$CADUCADA"
 fi
 
-echo "Aura: motor OK · config OK · $COLA · $AUTO · $SESION"
+# Límite de uso de Claude: los videos esperan en 01_Entrada hasta la hora de reinicio.
+USO=""
+if [ -f "$ESPERA" ]; then
+  HASTA_TS="$(grep -o '"hasta_ts": *[0-9]*' "$ESPERA" 2>/dev/null | grep -o '[0-9]*$')"
+  HASTA="$(grep -o '"hasta": *"[^"]*"' "$ESPERA" 2>/dev/null | sed -e 's/.*T\([0-9][0-9]:[0-9][0-9]\).*/\1/')"
+  if [ -n "$HASTA_TS" ] && [ "$HASTA_TS" -gt "$(date +%s)" ] 2>/dev/null; then
+    USO=" · ⏳ Claude sin uso disponible hasta las $HASTA: los videos esperan y se revisan solos"
+  fi
+fi
+
+echo "Aura: motor OK · config OK · $COLA · $AUTO · $SESION$USO"
 exit 0

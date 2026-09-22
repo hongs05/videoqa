@@ -37,6 +37,7 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:instalar` | Deja todo configurado la primera vez: motor, carpeta de Drive, guía de marca y prueba. |
 | `/aura:revisar` | Revisa los videos pendientes (o el que le digas) y te explica qué corregir y en qué segundo. |
 | `/aura:estado` | Te dice qué hay pendiente, cómo quedaron los últimos y si la revisión automática está encendida. |
+| `/aura:corregir` | Le enseñas qué no era error (o qué se le pasó) y lo aplica en los próximos videos, en casos parecidos. |
 | `/aura:ajustar` | Añade palabras que no debe marcar como error y cambia qué problemas bloquean la publicación. |
 | `/aura:activar-automatico` | Enciende (o apaga) la revisión automática de todo lo que subas a `01_Entrada`. |
 | `/aura:actualizar` | Pone el motor y los comandos al día, y te cuenta qué cambió. |
@@ -44,7 +45,7 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |
 
 **No hace falta escribir los comandos.** Puedes pedirlo con tus propias palabras: «revisa los
-videos nuevos», «¿cómo va la cola?», «no marques la palabra Kasa», «activa la revisión
+videos nuevos», «¿cómo va la cola?», «no marques la palabra Kasa», «eso no es error, es el logo de la camiseta», «activa la revisión
 automática». Aura entiende igual.
 
 Al abrir cada sesión, Aura te saluda con una línea de estado: si el motor está instalado, cuántos

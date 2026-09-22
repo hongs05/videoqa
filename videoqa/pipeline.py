@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from videoqa.brand import load_brand
@@ -11,13 +11,14 @@ from videoqa.checks.brand_color import check_brand_colors
 from videoqa.checks.spelling import check_spelling, load_glossary
 from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
-from videoqa.claude_runner import Runner
+from videoqa.claude_runner import Runner, UsageLimitError
 from videoqa.config import Settings
-from videoqa.doctor_state import write_doctor_state
+from videoqa.doctor_state import clear_wait_state, write_doctor_state, write_wait_state
 from videoqa.findings import Finding, save_findings
 from videoqa.gate import decide, deliver
 from videoqa.job import Job
 from videoqa.judge import JudgeError, prepare_judge, run_judge
+from videoqa.learning import load_corrections
 from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
 from videoqa.stages.color import add_colors
@@ -30,12 +31,17 @@ from videoqa.stages.transcribe import transcribe
 log = logging.getLogger("videoqa")
 
 
+# Si el mensaje de límite no dice la hora de reinicio, se reintenta pasado este tiempo.
+WAIT_FALLBACK = timedelta(hours=1)
+
+
 @dataclass
 class Result:
-    status: str                 # approved | rejected | error | pending
+    status: str                 # approved | rejected | error | pending | waiting
     findings: list[Finding]
     dest: Path | None
     error: str | None = None
+    retry_at: datetime | None = None  # solo en "waiting": cuándo vuelve a haber uso de Claude
 
 
 def _rel(settings: Settings, path: Path | None) -> str:
@@ -103,10 +109,16 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         sheet.write(row_for(video.name, "error", [], "", _rel(settings, video), 0, datetime.now(), note=msg))
         return Result("error", [], None, msg)
 
+    try:
+        corrections = load_corrections(settings.config_dir)
+    except OSError as e:  # Drive sin sincronizar, permisos…: se revisa igual, sin memoria
+        log.warning("[%s] no se pudieron leer las correcciones del equipo: %s", job.name, e)
+        corrections = []
+
     if modo == "preparar":
         try:
             prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
-                          frames["frames"], rules, duration=float(p["duration"]))
+                          frames["frames"], rules, duration=float(p["duration"]), corrections=corrections)
         except JudgeError as e:
             log.error("[%s] %s", job.name, e)
             return Result("error", code_findings, None, str(e))
@@ -125,7 +137,19 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     try:
         try:
             verdict = run_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
-                                 frames["frames"], rules, runner, duration=float(p["duration"]))
+                                 frames["frames"], rules, runner, duration=float(p["duration"]),
+                                 corrections=corrections)
+        except UsageLimitError as e:
+            # Sin uso de Claude no hay veredicto que dar, pero el video no tiene la culpa:
+            # se queda en Entrada (nada de reporte con los hallazgos sin filtrar) y se
+            # reintenta cuando se libere el uso. Extracción y OCR ya quedan cacheados.
+            retry_at = e.resets_at or (datetime.now().astimezone() + WAIT_FALLBACK)
+            write_wait_state(retry_at, video.name)
+            note = f"En espera: Claude sin uso disponible hasta las {retry_at:%H:%M}"
+            log.warning("[%s] %s; el video se queda en 01_Entrada", job.name, note)
+            sheet.write(row_for(video.name, "waiting", [], "", _rel(settings, video), float(p["duration"]),
+                                datetime.now(), note=note))
+            return Result("waiting", code_findings, None, str(e), retry_at=retry_at)
         except Exception as e:  # noqa: BLE001 — cualquier fallo del juez (ClaudeError u otro) degrada igual
             log.error("[%s] %s", job.name, e)
             texto_error = str(e).lower()
@@ -150,11 +174,15 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             status = decide(findings) if opcional else "error"
             judge_error: str | None = None if opcional else str(e)
         else:
+            clear_wait_state()  # Claude respondió: si había una espera por límite, ya pasó
             dismissed = {d["id"] for d in verdict["dismissed"]}
             findings = [f for f in code_findings if f.id not in dismissed] + verdict["findings"]
             status = decide(findings)
             judge_error = None
 
+        # Lista final (lo que ve la persona en el reporte): `videoqa hallazgos` la usa para
+        # que las correcciones del equipo apunten al mismo hallazgo.
+        save_findings(job.path("findings_final.json"), findings)
         _, evidencia = build_report(job, p, findings, status)
         if rules.get("salida", {}).get("reporte_html"):
             from videoqa.report_html import build_html_report

@@ -8,6 +8,7 @@ from typing import Callable
 
 from videoqa.claude_runner import Runner
 from videoqa.config import Settings
+from videoqa.doctor_state import load_wait_until
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetWriter
 
@@ -95,9 +96,23 @@ def watch(settings: Settings | list[Settings], rules: dict, runner: Runner,
     warned_unstable: set[str] = set()
     for c in carpetas:
         log.info("vigilando %s", c.entrada)
+    # Límite de uso de Claude: si un video lo encontró, TODOS los siguientes también lo
+    # harían. Se pausa la cola entera hasta la hora de reinicio (leída también del disco,
+    # para que un reinicio del watcher no la ignore).
+    pause_until = load_wait_until() or 0.0
+    pause_logged = 0.0  # se avisa una vez por pausa, no en cada vuelta de 10 s
     while True:
         for carpeta in carpetas:
-            for video in list_videos(carpeta.entrada):
+            pendientes = list_videos(carpeta.entrada)
+            if pendientes and time.time() < pause_until:
+                if pause_logged != pause_until:
+                    pause_logged = pause_until
+                    log.info("Claude sin uso disponible hasta las %s: los videos esperan en 01_Entrada",
+                             time.strftime("%H:%M", time.localtime(pause_until)))
+                continue
+            for video in pendientes:
+                if time.time() < pause_until:
+                    break
                 key = _failed_key(video)
                 if key in failed:
                     elapsed = time.time() - failed[key]
@@ -121,6 +136,11 @@ def watch(settings: Settings | list[Settings], rules: dict, runner: Runner,
                     log.exception("[%s] error inesperado procesando", video.name)
                     failed[key] = time.time()
                     _save_failed(state_path, failed)
+                    continue
+                if result.status == "waiting":
+                    # No es un fallo del video: no se anota en `failed` (eso lo retrasaría
+                    # retry_after_s más), solo se pausa la cola hasta que vuelva el uso.
+                    pause_until = result.retry_at.timestamp() if result.retry_at else time.time() + 3600
                     continue
                 if result.status == "error" and result.dest is None:
                     failed[key] = time.time()
