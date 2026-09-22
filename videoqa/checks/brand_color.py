@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from videoqa.checks.colors import hex_delta_e
+from videoqa.checks.scene_text import is_scene_text
 from videoqa.findings import Finding
 
 log = logging.getLogger("videoqa")
@@ -16,11 +17,16 @@ def check_brand_colors(appearances: list[dict], brand: dict, rules: dict) -> lis
     tol = float(rules["thresholds"]["color_delta_e"])
     min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
     sev = rules["severities"]["brand_color"]
-    out = []
+    # Un mismo rótulo leído en varios frames (o partido en dos apariciones por un fallo
+    # del OCR) daba un bloqueante por copia; se agrupa por texto.
+    seen: dict[str, tuple[Finding, list[float]]] = {}
     for i, a in enumerate(appearances):
         # OCR de baja confianza = casi siempre un artefacto (logo bordado, textura);
         # su color no representa un rótulo real y disparaba bloqueantes falsos.
         if float(a.get("conf", 1.0)) < min_conf:
+            continue
+        # La paleta de marca aplica a los rótulos de edición, no a la ropa o los carteles.
+        if is_scene_text(a, rules):
             continue
         # Un subtítulo con contorno tiene DOS tintas legítimas (relleno y borde):
         # basta con que UNA esté en paleta para que la aparición pase.
@@ -31,12 +37,22 @@ def check_brand_colors(appearances: list[dict], brand: dict, rules: dict) -> lis
         de, _, nearest = best
         if de <= tol:
             continue
+        key = " ".join(a["text"].lower().split())
+        if key in seen:
+            seen[key][1].append(a["t_start"])
+            continue
         shown = ", ".join(candidates)
-        out.append(Finding(
+        seen[key] = (Finding(
             id=f"color-{i}", type="marca", severity=sev, t_start=a["t_start"], t_end=a["t_end"],
             title=f"Color de texto fuera de marca: {candidates[0]}",
             detail=(f'El texto "{a["text"]}" usa {shown}. Paleta permitida: {", ".join(palette)} '
                     f"(ΔE mínimo {de:.1f} respecto a {nearest})."),
             suggestion=f"Cambiar a {nearest} o a otro color de la paleta.",
-            frame=a.get("frame"), bbox=a.get("bbox"), source="code", check="brand_color"))
+            frame=a.get("frame"), bbox=a.get("bbox"), source="code", check="brand_color"), [])
+    out = []
+    for f, times in seen.values():
+        if times:
+            f.detail += " También aparece en " + ", ".join(f"{t:.1f} s" for t in times[:5]) + (
+                f" y {len(times) - 5} más." if len(times) > 5 else ".")
+        out.append(f)
     return out

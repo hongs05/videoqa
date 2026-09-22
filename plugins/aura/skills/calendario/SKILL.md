@@ -1,5 +1,5 @@
 ---
-description: Arma o revisa el calendario de contenido del mes. "Armar" convierte la estrategia (o las cantidades que le digas) en el Excel con el formato Aura; "revisar" compara un calendario contra la estrategia y dice qué falta o no cumple. Úsalo cuando la persona diga "ármame el calendario de octubre", "pásame esto a Excel", "revisa el calendario", "¿el calendario cumple la estrategia?".
+description: Arma el calendario de contenido del mes en Excel (formato Aura) desde la estrategia, o revisa uno y dice qué falta. Por ejemplo "ármame el calendario de octubre", "revisa el calendario".
 allowed-tools: Read Write Bash(uv run:*) Bash(open:*) Bash(ls:*) Bash(cat:*)
 ---
 

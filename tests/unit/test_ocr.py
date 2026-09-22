@@ -62,3 +62,16 @@ def test_ocr_frames_builds_appearances(fixture_videos, tmp_path):
     apps = [a for a in out["appearances"] if "oferta" in norm_text(a["text"])]
     assert len(apps) == 1
     assert 0.5 <= apps[0]["t_start"] <= 1.5 and 9.5 <= apps[0]["t_end"] <= 10.5
+
+
+def test_dedupe_rotulo_fijo_no_se_mueve():
+    apps = dedupe([item("Oferta", 1.0), item("Oferta", 1.5), item("Oferta", 2.0)], period=0.5)
+    assert apps[0]["motion"] == 0.0 and apps[0]["scale"] == 1.0
+
+
+def test_dedupe_mide_movimiento_y_escala_del_texto_de_la_escena():
+    """El logo de una camiseta se desplaza y cambia de tamaño con la persona."""
+    raw = [item("SUSHI CD", 1.0, bbox=(0.30, 0.78, 0.20, 0.03)),
+           item("SUSHI CD", 1.5, bbox=(0.34, 0.76, 0.22, 0.04))]
+    apps = dedupe(raw, period=0.5)
+    assert len(apps) == 1 and apps[0]["motion"] > 0.03 and apps[0]["scale"] > 1.25

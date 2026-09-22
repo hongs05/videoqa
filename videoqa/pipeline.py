@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,7 +22,7 @@ from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
 from videoqa.stages.color import add_colors
 from videoqa.stages.frames import extract_frames
-from videoqa.stages.ocr import ocr_frames
+from videoqa.stages.ocr import dedupe, ocr_frames
 from videoqa.stages.probe import probe
 from videoqa.stages.technical import analyze
 from videoqa.stages.transcribe import transcribe
@@ -74,6 +75,13 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         technical = job.run_stage("technical", "technical.json", lambda j: analyze(j, p["has_audio"], float(rules["frames"]["scene_threshold"])))
         frames = job.run_stage("frames", "frames.json", lambda j: extract_frames(j, technical["scene_cuts"], int(rules["frames"]["fps"])))
         ocr = job.run_stage("ocr", "ocr.json", lambda j: ocr_frames(j, frames["frames"], frames["period"]))
+        if any("motion" not in a for a in ocr["appearances"]):
+            # OCR cacheado por una versión anterior: se reagrupa desde las lecturas crudas
+            # (sin volver a leer los frames) para tener `motion`/`scale`, que distinguen el
+            # texto de la escena de los rótulos.
+            ocr = {"raw": ocr["raw"], "appearances": dedupe(ocr["raw"], period=frames["period"])}
+            job.path("ocr.json").write_text(json.dumps(ocr, ensure_ascii=False, indent=2))
+            job.path("ocr_color.json").unlink(missing_ok=True)
         ocr = job.run_stage("color", "ocr_color.json", lambda j: add_colors(j, ocr))
 
         glossary_path = settings.config_dir / "glosario.txt"
@@ -83,7 +91,8 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
         # feed vertical; en 16:9 el check no aplica.
         vertical = int(p["height"]) > int(p["width"])
-        code_findings = (check_spelling(apps, glossary, rules) + check_brand_colors(apps, brand, rules)
+        code_findings = (check_spelling(apps, glossary, rules, segments=transcript["segments"])
+                         + check_brand_colors(apps, brand, rules)
                          + check_timing(apps, transcript["segments"], rules, vertical=vertical)
                          + check_technical(p, technical, rules))
         save_findings(job.path("findings_code.json"), code_findings)

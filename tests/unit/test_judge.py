@@ -120,10 +120,7 @@ def test_parse_verdict_valid():
 
 @pytest.mark.parametrize("bad", [
     '{"findings": "no"}',
-    '{"findings": [{"type": "x", "severity": "blocker", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": "## Escena 1 [0:00] Hola"}',
-    '{"findings": [{"type": "marca", "severity": "grave", "t_start": 0, "t_end": 1, "title": "t", "detail": "d"}], "guion_real_md": "## Escena 1 [0:00] Hola"}',
     '{"findings": [], "guion_real_md": 5}',
-    '{"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola", "confirmed_code_findings": "spell-0"}',
     '{"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola", "dismissed_code_findings": "nope"}',
 ])
 def test_parse_verdict_invalid(bad):
@@ -328,3 +325,47 @@ def test_run_judge_non_string_frame_becomes_none(tmp_path):
     out = run_judge(job, {}, "", {"segments": []}, {"appearances": []}, {}, [], frames_list(), R,
                     runner=lambda p, c: verdict, skill_path=SKILL)
     assert out["findings"][0].frame is None
+
+
+def _one(finding: dict) -> dict:
+    return parse_verdict(json.dumps({"findings": [finding], "guion_real_md": "## Escena 1 [0:00] Hola"}))["findings"]
+
+
+def test_parse_verdict_normaliza_variantes_en_vez_de_fallar():
+    """Un "Ortografía"/"critical" suelto tiraba el veredicto entero y el video acababa en error."""
+    fs = _one({"type": "Ortografía", "severity": "Critical", "t_start": "12,5", "t_end": "13s",
+               "title": "Tilde", "detail": "falta tilde"})
+    assert fs == [{"type": "ortografia", "severity": "blocker", "t_start": 12.5, "t_end": 13.0,
+                   "title": "Tilde", "detail": "falta tilde"}]
+
+
+def test_parse_verdict_valores_desconocidos_usan_defecto():
+    fs = _one({"type": "x", "severity": "rarisima", "t_start": None, "title": "t", "detail": "d"})
+    assert fs[0]["type"] == "tecnico" and fs[0]["severity"] == "warning"
+    assert fs[0]["t_start"] == 0.0 and fs[0]["t_end"] == 0.0
+
+
+def test_parse_verdict_completa_title_o_detail_y_descarta_vacios():
+    v = parse_verdict(json.dumps({"findings": [
+        {"type": "marca", "severity": "warning", "t_start": 1, "t_end": 2, "detail": "Logo ausente"},
+        {"type": "marca", "severity": "warning", "t_start": 1, "t_end": 2},
+        "no soy un objeto",
+    ], "guion_real_md": "## Escena 1 [0:00] Hola"}))
+    assert len(v["findings"]) == 1
+    assert v["findings"][0]["title"] == "Logo ausente" and v["findings"][0]["detail"] == "Logo ausente"
+
+
+def test_parse_verdict_confirmed_como_texto_no_tira_el_veredicto():
+    v = parse_verdict(json.dumps({"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
+                                  "confirmed_code_findings": "spell-0"}))
+    assert v["confirmed_code_findings"] == ["spell-0"]
+
+
+def test_select_frames_da_prioridad_al_frame_de_los_bloqueantes():
+    """Con muchos avisos, el frame del bloqueante quedaba fuera y el juez no podía descartarlo."""
+    frames = frames_list(40)
+    avisos = [Finding(id=f"w{i}", type="tecnico", severity="warning", t_start=0, t_end=1, title="t",
+                      detail="d", frame=f"frames/sec_{i + 1:04d}.jpg") for i in range(10)]
+    bloqueante = Finding(id="b", type="ortografia", severity="blocker", t_start=19, t_end=19.5, title="t",
+                         detail="d", frame="frames/sec_0039.jpg")
+    assert "frames/sec_0039.jpg" in select_frames(frames, [], avisos + [bloqueante], 6)
