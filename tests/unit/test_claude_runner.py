@@ -78,3 +78,13 @@ def test_run_claude_pasa_el_env_al_subproceso(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert run_claude("hola", tmp_path) == "ok"
     assert visto["env"]["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-xyz"
+
+
+def test_run_claude_sin_herramientas_omite_el_flag(monkeypatch, tmp_path):
+    visto = {}
+    def fake_run(cmd, **kw):
+        visto["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"is_error": False, "result": "ok"}), stderr="")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    run_claude("hola", tmp_path, allowed_tools=())
+    assert "--allowedTools" not in visto["cmd"]

@@ -33,7 +33,9 @@ def claude_env() -> dict[str, str]:
 
 def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int = 600,
                allowed_tools: tuple[str, ...] = ("Read",)) -> str:
-    cmd = [claude_bin, "-p", "--output-format", "json", "--allowedTools", ",".join(allowed_tools)]
+    cmd = [claude_bin, "-p", "--output-format", "json"]
+    if allowed_tools:
+        cmd += ["--allowedTools", ",".join(allowed_tools)]
     try:
         proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout,
                                env=claude_env())

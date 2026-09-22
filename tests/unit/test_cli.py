@@ -1,9 +1,12 @@
+import json
 import logging
 
 import pytest
 import yaml
+from videoqa import cli
+from videoqa.claude_runner import ClaudeError
 from videoqa.cli import main, make_sheet
-from videoqa.config import Settings
+from videoqa.config import Settings, token_path, videoqa_home
 
 def test_init_writes_config_and_folders(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
@@ -101,3 +104,36 @@ def test_watch_vigila_todas_las_carpetas(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "watch", fake_watch)
     assert main(["watch", "--once"]) == 0
     assert recibidas["carpetas"] == [tmp_path / "d", tmp_path / "local"]
+
+
+def test_doctor_ok_con_token(monkeypatch, capsys):
+    token_path().parent.mkdir(parents=True, exist_ok=True)
+    token_path().write_text("sk-ant-oat01-x")
+    monkeypatch.setattr(cli, "run_claude", lambda *a, **k: "ok")
+    assert cli.main(["doctor"]) == 0
+    assert capsys.readouterr().out.strip() == "CRITERIO OK · sesión guardada"
+    assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is True
+
+
+def test_doctor_ok_sin_token(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "run_claude", lambda *a, **k: "ok")
+    assert cli.main(["doctor"]) == 0
+    assert capsys.readouterr().out.strip() == "CRITERIO OK · sesión del CLI"
+
+
+def test_doctor_falla_si_claude_no_responde(monkeypatch, capsys):
+    def boom(*a, **k):
+        raise ClaudeError("claude -p salió con 1: Failed to authenticate: OAuth session expired")
+    monkeypatch.setattr(cli, "run_claude", boom)
+    assert cli.main(["doctor"]) == 1
+    out = capsys.readouterr().out.strip()
+    assert out.startswith("CRITERIO SIN SESIÓN · la sesión caducó o no hay token guardado")
+    assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is False
+
+
+def test_doctor_falla_si_no_hay_binario(monkeypatch, capsys):
+    def boom(*a, **k):
+        raise ClaudeError("no se pudo ejecutar claude: [Errno 2] No such file")
+    monkeypatch.setattr(cli, "run_claude", boom)
+    assert cli.main(["doctor"]) == 1
+    assert "no encuentro el programa claude" in capsys.readouterr().out

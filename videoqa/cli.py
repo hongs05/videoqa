@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import logging.handlers
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import yaml
 
 from videoqa.brand import build_brand
-from videoqa.claude_runner import Runner, run_claude
-from videoqa.config import Settings, default_config_path, load_all_settings, load_rules, load_settings, videoqa_home
+from videoqa.claude_runner import ClaudeError, Runner, run_claude
+from videoqa.config import (
+    Settings,
+    default_config_path,
+    load_all_settings,
+    load_rules,
+    load_settings,
+    load_token,
+    videoqa_home,
+)
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
@@ -92,6 +102,29 @@ def cmd_run(args) -> int:
     return 0 if res.status in ("approved", "rejected") else 1
 
 
+def cmd_doctor(args) -> int:
+    """Una línea: ¿puede Claude dar criterio ahora mismo? Deja el resultado en doctor.json."""
+    con_token = load_token() is not None
+    claude_bin = "claude"
+    cfg = Path(os.environ.get("VIDEOQA_CONFIG", default_config_path()))
+    if cfg.exists():
+        try:
+            claude_bin = load_settings(cfg).claude_bin
+        except Exception:  # noqa: BLE001 — config rota: se prueba con el binario por defecto
+            pass
+    ok, motivo = True, "sesión guardada" if con_token else "sesión del CLI"
+    try:
+        run_claude("Responde solo con la palabra: ok", videoqa_home(), claude_bin=claude_bin, timeout=90, allowed_tools=())
+    except ClaudeError as e:
+        ok = False
+        motivo = "no encuentro el programa claude" if "no se pudo ejecutar" in str(e) else "la sesión caducó o no hay token guardado"
+    videoqa_home().mkdir(parents=True, exist_ok=True)
+    (videoqa_home() / "doctor.json").write_text(json.dumps(
+        {"ok": ok, "motivo": motivo, "at": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False))
+    print(f"CRITERIO {'OK' if ok else 'SIN SESIÓN'} · {motivo}")
+    return 0 if ok else 1
+
+
 def cmd_watch(args) -> int:
     carpetas, rules = load_all_settings(), load_rules()
     principal = carpetas[0]
@@ -118,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("watch", help="vigilar 01_Entrada/")
     p.add_argument("--once", action="store_true")
     p.set_defaults(fn=cmd_watch)
+    p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
+    p.set_defaults(fn=cmd_doctor)
     args = ap.parse_args(argv)
     return args.fn(args)
 
