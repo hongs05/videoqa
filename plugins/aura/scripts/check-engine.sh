@@ -8,7 +8,7 @@
 #
 set -u
 
-PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
+PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
 
 MOTOR="$HOME/videoqa"
 HOME_VQA="${VIDEOQA_HOME:-$HOME/.videoqa}"
