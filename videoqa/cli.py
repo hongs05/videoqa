@@ -10,8 +10,9 @@ from pathlib import Path
 
 import yaml
 
+from videoqa import learning
 from videoqa.brand import build_brand
-from videoqa.claude_runner import ClaudeError, Runner, run_claude
+from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, run_claude
 from videoqa.config import (
     Settings,
     default_config_path,
@@ -21,8 +22,10 @@ from videoqa.config import (
     load_token,
     videoqa_home,
 )
-from videoqa.doctor_state import write_doctor_state
+from videoqa.doctor_state import write_doctor_state, write_wait_state
+from videoqa.findings import Finding, load_findings, sort_findings
 from videoqa.pipeline import process_video
+from videoqa.report import fmt_t
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
 
@@ -111,6 +114,10 @@ def cmd_run(args) -> int:
     if res.status == "pending":
         print(f"JUEZ_PENDIENTE {settings.jobs_dir / video.stem}")
         return 0
+    if res.status == "waiting":
+        hora = f"{res.retry_at:%H:%M}" if res.retry_at else "dentro de una hora"
+        print(f"EN_ESPERA hasta {hora}: Claude sin uso disponible; el video sigue en 01_Entrada")
+        return 3
     if res.dest:
         print(f"{res.status.upper()} → {res.dest / 'reporte.md'}")
     else:
@@ -131,6 +138,11 @@ def cmd_doctor(args) -> int:
     ok, motivo = True, "sesión guardada" if con_token else "sesión del CLI"
     try:
         run_claude("Responde solo con la palabra: ok", videoqa_home(), claude_bin=claude_bin, timeout=180, allowed_tools=())
+    except UsageLimitError as e:
+        # La sesión está bien: lo que falta es uso disponible. No es "sesión caducada".
+        if e.resets_at:
+            write_wait_state(e.resets_at, "")
+        motivo = f"{motivo}; sin uso disponible hasta las {e.resets_at:%H:%M}" if e.resets_at else f"{motivo}; sin uso disponible"
     except ClaudeError as e:
         ok = False
         motivo = "no encuentro el programa claude" if "no se pudo ejecutar" in str(e) else "la sesión caducó o no está guardada"
@@ -140,6 +152,75 @@ def cmd_doctor(args) -> int:
     write_doctor_state(ok, motivo)
     print(f"CRITERIO {'OK' if ok else 'SIN SESIÓN'} · {motivo}")
     return 0 if ok else 1
+
+
+_SEVERITY_WORD = {"blocker": "BLOQUEA", "warning": "AVISO", "info": "INFO"}
+
+
+def _find_job(settings: Settings, name: str) -> Path | None:
+    """Carpeta de trabajo de un video por su nombre, o por un trozo si es inequívoco."""
+    jobs = settings.jobs_dir
+    exact = jobs / Path(name).stem
+    if exact.is_dir():
+        return exact
+    needle = " ".join(Path(name).stem.lower().split())
+    matches = [d for d in jobs.iterdir() if d.is_dir() and needle in " ".join(d.name.lower().split())] if jobs.is_dir() else []
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        print("VARIOS videos coinciden; di cuál:")
+        for d in sorted(matches):
+            print(f"- {d.name}")
+    else:
+        print(f"NO_ENCONTRADO: no hay ningún video revisado que se llame como «{name}»")
+    return None
+
+
+def _job_findings(job_dir: Path) -> list[Finding]:
+    final = job_dir / "findings_final.json"
+    if final.exists():
+        return load_findings(final)
+    out: list[Finding] = []
+    for name in ("findings_code.json", "findings_claude.json"):
+        if (job_dir / name).exists():
+            out += load_findings(job_dir / name)
+    return out
+
+
+def cmd_hallazgos(args) -> int:
+    """Lista numerada de lo que se marcó en un video, para poder corregirlo por su id."""
+    job_dir = _find_job(load_settings(), args.video)
+    if job_dir is None:
+        return 1
+    findings = sort_findings(_job_findings(job_dir))
+    print(f"VIDEO {job_dir.name} · {len(findings)} hallazgo(s)")
+    for f in findings:
+        detalle = f.detail if len(f.detail) <= 160 else f.detail[:157] + "…"
+        print(f"[{f.id}] {fmt_t(f.t_start)} {_SEVERITY_WORD.get(f.severity, f.severity)} · {f.title} — {detalle}")
+    return 0
+
+
+def cmd_corregir(args) -> int:
+    """Guarda una corrección del equipo para que el juez aprenda de ella."""
+    settings = load_settings()
+    job_dir = _find_job(settings, args.video)
+    if job_dir is None:
+        return 1
+    finding = None
+    if args.hallazgo:
+        by_id = {f.id: f for f in _job_findings(job_dir)}
+        if args.hallazgo not in by_id:
+            print(f"NO_ENCONTRADO: el video {job_dir.name} no tiene el hallazgo {args.hallazgo}")
+            return 1
+        finding = by_id[args.hallazgo].to_dict()
+    tipo = "no_detectado" if args.no_detectado else "falso_positivo"
+    entry = learning.add_correction(settings.config_dir, tipo=tipo, video=job_dir.name, motivo=args.motivo,
+                                    finding=finding, segundo=args.segundo)
+    print(f"GUARDADO ({tipo}) en {learning.path_for(settings.config_dir)}")
+    repetidas = learning.repeated_words(learning.load_corrections(settings.config_dir), entry.get("palabras", []))
+    if repetidas:
+        print(f"SUGERIR_GLOSARIO: {', '.join(repetidas)}")
+    return 0
 
 
 def cmd_watch(args) -> int:
@@ -172,6 +253,17 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("watch", help="vigilar 01_Entrada/")
     p.add_argument("--once", action="store_true")
     p.set_defaults(fn=cmd_watch)
+    p = sub.add_parser("hallazgos", help="listar lo que se marcó en un video revisado")
+    p.add_argument("video")
+    p.set_defaults(fn=cmd_hallazgos)
+    p = sub.add_parser("corregir", help="guardar una corrección del equipo para que el juez aprenda")
+    p.add_argument("video")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--hallazgo", metavar="ID", help="id del hallazgo que NO era un error")
+    g.add_argument("--no-detectado", action="store_true", help="un error que la revisión no vio")
+    p.add_argument("--motivo", required=True, help="por qué, en palabras de la persona")
+    p.add_argument("--segundo", type=float, help="segundo aproximado (para --no-detectado)")
+    p.set_defaults(fn=cmd_corregir)
     p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
     p.set_defaults(fn=cmd_doctor)
     args = ap.parse_args(argv)

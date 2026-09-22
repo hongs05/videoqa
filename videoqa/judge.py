@@ -7,10 +7,11 @@ from pathlib import Path
 
 from PIL import Image
 
-from videoqa.claude_runner import ClaudeError, Runner, extract_json
+from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, extract_json
 from videoqa.config import SKILL_PATH
 from videoqa.findings import SEVERITIES, SEVERITY_ORDER, TYPES, Finding
 from videoqa.job import Job
+from videoqa.learning import for_judge, relevant
 
 log = logging.getLogger("videoqa")
 
@@ -85,7 +86,8 @@ def select_frames(frames: list[dict], appearances: list[dict], code_findings: li
 
 
 def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
-                   code_findings: list[Finding], frames: list[dict], rules: dict) -> dict:
+                   code_findings: list[Finding], frames: list[dict], rules: dict,
+                   corrections: list[dict] | None = None) -> dict:
     inp = job.path("judge_input")
     shutil.rmtree(inp, ignore_errors=True)
     inp.mkdir()
@@ -96,6 +98,10 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
         "technical.json": technical,
         "findings_code.json": [f.to_dict() for f in code_findings],
     }
+    if corrections:
+        # Solo las más parecidas a este video: todas juntas gastarían uso de Claude de más.
+        files["aprendizaje.json"] = for_judge(relevant(corrections, code_findings, ocr.get("appearances", []),
+                                                        transcript))
     for name, data in files.items():
         (inp / name).write_text(json.dumps(data, ensure_ascii=False, indent=2))
     (inp / "glosario.txt").write_text(glossary_text)
@@ -263,14 +269,16 @@ def parse_verdict(text: str, require_guion: bool = True) -> dict:
 
 def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                   code_findings: list[Finding], frames: list[dict], rules: dict,
-                  skill_path: Path = SKILL_PATH, duration: float | None = None) -> str:
+                  skill_path: Path = SKILL_PATH, duration: float | None = None,
+                  corrections: list[dict] | None = None) -> str:
     """Deja en el job dir todo lo que el juez necesita y devuelve el prompt.
 
     Lo usa `run_judge` (juez por `claude -p`) y también `videoqa run --hasta-juez`,
     donde el juez es la propia sesión de Claude que lee `judge_prompt.md`.
     """
     try:
-        manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules)
+        manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
+                                  corrections=corrections)
         skill_text = skill_path.read_text(encoding="utf-8")
     except Exception as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
         raise JudgeError(f"no se pudieron preparar las entradas del juez: {e}") from e
@@ -284,9 +292,10 @@ def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, o
 
 def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
               code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
-              skill_path: Path = SKILL_PATH, duration: float | None = None) -> dict:
+              skill_path: Path = SKILL_PATH, duration: float | None = None,
+              corrections: list[dict] | None = None) -> dict:
     base_prompt = prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
-                                skill_path=skill_path, duration=duration)
+                                skill_path=skill_path, duration=duration, corrections=corrections)
     manifest = json.loads(job.path("judge_manifest.json").read_text())
     # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.
     require_guion = bool(transcript.get("segments"))
@@ -305,6 +314,8 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
         try:
             verdict = parse_verdict(runner(prompt, job.dir), require_guion=require_guion)
             break
+        except UsageLimitError:
+            raise  # sin uso disponible: el segundo intento fallaría igual
         except (ClaudeError, ValueError) as e:
             last = e
             log.warning("[%s] juez intento %d falló: %s", job.name, attempt, e)

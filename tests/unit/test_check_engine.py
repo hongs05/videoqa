@@ -84,3 +84,19 @@ def test_cuenta_solo_videos(tmp_path):
 
 def test_sin_videos(tmp_path):
     assert "sin videos pendientes" in _run(_entorno(tmp_path, auth_exit=0))
+
+
+def test_avisa_de_la_espera_por_limite_de_uso(tmp_path):
+    env = _entorno(tmp_path, auth_exit=0)
+    futuro = int(time.time()) + 3600
+    (Path(env["VIDEOQA_HOME"]) / "espera.json").write_text(json.dumps(
+        {"hasta": "2099-09-22T19:20-06:00", "hasta_ts": futuro, "videos": ["a.mp4"]}))
+    out = _run(env)
+    assert "Claude sin uso disponible hasta las 19:20" in out
+
+
+def test_espera_pasada_no_se_menciona(tmp_path):
+    env = _entorno(tmp_path, auth_exit=0)
+    (Path(env["VIDEOQA_HOME"]) / "espera.json").write_text(json.dumps(
+        {"hasta": "2020-01-01T19:20-06:00", "hasta_ts": 1577926800, "videos": []}))
+    assert "sin uso" not in _run(env)
