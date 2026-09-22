@@ -29,6 +29,45 @@ def test_run_uses_injected_process(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "process_video", lambda v, s, r, runner, sheet=None: Result("approved", [], drive / "03_Aprobado" / "v"))
     assert main(["run", str(video)]) == 0
 
+def test_run_copia_a_entrada_si_viene_de_fuera(tmp_path, monkeypatch, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    fuera = tmp_path / "otra" / "clip.mp4"
+    fuera.parent.mkdir()
+    fuera.write_bytes(b"x")
+    visto = {}
+
+    import videoqa.cli as cli
+    from videoqa.pipeline import Result
+
+    def fake_process(video, settings, rules, runner, sheet=None):
+        visto["video"] = video
+        return Result("approved", [], drive / "03_Aprobado" / "clip")
+    monkeypatch.setattr(cli, "process_video", fake_process)
+    assert main(["run", str(fuera)]) == 0
+    assert visto["video"] == drive / "01_Entrada" / "clip.mp4"
+    assert fuera.exists(), "el original se conserva"
+    assert "Copiado a 01_Entrada" in capsys.readouterr().out
+
+
+def test_run_no_copia_si_ya_esta_en_entrada(tmp_path, monkeypatch):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    dentro = drive / "01_Entrada" / "clip.mp4"
+    dentro.write_bytes(b"x")
+    visto = {}
+
+    import videoqa.cli as cli
+    from videoqa.pipeline import Result
+
+    def fake_process(video, settings, rules, runner, sheet=None):
+        visto["video"] = video
+        return Result("approved", [], drive / "03_Aprobado" / "clip")
+    monkeypatch.setattr(cli, "process_video", fake_process)
+    main(["run", str(dentro)])
+    assert visto["video"] == dentro
+
+
 def test_run_returns_1_on_error(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
     monkeypatch.setenv("VIDEOQA_CONFIG", str(cfg))

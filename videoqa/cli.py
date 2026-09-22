@@ -5,6 +5,7 @@ import json
 import logging
 import logging.handlers
 import os
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -94,7 +95,17 @@ def cmd_brand(args) -> int:
 
 def cmd_run(args) -> int:
     settings, rules = load_settings(), load_rules()
-    res = process_video(Path(args.video).expanduser(), settings, rules, make_runner(settings, rules), sheet=make_sheet(settings))
+    video = Path(args.video).expanduser().resolve()
+    entrada = settings.entrada.resolve()
+    if video.parent != entrada and video.exists():
+        # Un video de fuera (p. ej. el de prueba que viene con el motor) se copia:
+        # deliver() MUEVE el archivo, y mover el fixture del repo lo deja sucio.
+        entrada.mkdir(parents=True, exist_ok=True)
+        destino = entrada / video.name
+        shutil.copy2(video, destino)
+        print(f"Copiado a 01_Entrada: {video.name}")
+        video = destino
+    res = process_video(video, settings, rules, make_runner(settings, rules), sheet=make_sheet(settings))
     if res.dest:
         print(f"{res.status.upper()} → {res.dest / 'reporte.md'}")
     else:
