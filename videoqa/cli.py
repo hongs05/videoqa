@@ -4,14 +4,24 @@ import argparse
 import logging
 import logging.handlers
 import os
+import shutil
 import sys
 from pathlib import Path
 
 import yaml
 
 from videoqa.brand import build_brand
-from videoqa.claude_runner import Runner, run_claude
-from videoqa.config import Settings, default_config_path, load_all_settings, load_rules, load_settings, videoqa_home
+from videoqa.claude_runner import ClaudeError, Runner, run_claude
+from videoqa.config import (
+    Settings,
+    default_config_path,
+    load_all_settings,
+    load_rules,
+    load_settings,
+    load_token,
+    videoqa_home,
+)
+from videoqa.doctor_state import write_doctor_state
 from videoqa.pipeline import process_video
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
@@ -84,12 +94,52 @@ def cmd_brand(args) -> int:
 
 def cmd_run(args) -> int:
     settings, rules = load_settings(), load_rules()
-    res = process_video(Path(args.video).expanduser(), settings, rules, make_runner(settings, rules), sheet=make_sheet(settings))
+    video = Path(args.video).expanduser().resolve()
+    entrada = settings.entrada.resolve()
+    if video.parent != entrada and video.exists():
+        # Un video de fuera (p. ej. el de prueba que viene con el motor) se copia:
+        # deliver() MUEVE el archivo, y mover el fixture del repo lo deja sucio.
+        entrada.mkdir(parents=True, exist_ok=True)
+        destino = entrada / video.name
+        shutil.copy2(video, destino)
+        print(f"Copiado a 01_Entrada: {video.name}")
+        video = destino
+    modo = "preparar" if getattr(args, "hasta_juez", False) else "completo"
+    veredicto_text = Path(args.veredicto).expanduser().read_text(encoding="utf-8") if getattr(args, "veredicto", None) else None
+    res = process_video(video, settings, rules, make_runner(settings, rules), sheet=make_sheet(settings),
+                        modo=modo, veredicto_text=veredicto_text)
+    if res.status == "pending":
+        print(f"JUEZ_PENDIENTE {settings.jobs_dir / video.stem}")
+        return 0
     if res.dest:
         print(f"{res.status.upper()} → {res.dest / 'reporte.md'}")
     else:
         print(f"ERROR: {res.error}")
     return 0 if res.status in ("approved", "rejected") else 1
+
+
+def cmd_doctor(args) -> int:
+    """Una línea: ¿puede Claude dar criterio ahora mismo? Deja el resultado en doctor.json."""
+    con_token = load_token() is not None
+    claude_bin = "claude"
+    cfg = Path(os.environ.get("VIDEOQA_CONFIG", default_config_path()))
+    if cfg.exists():
+        try:
+            claude_bin = load_settings(cfg).claude_bin
+        except Exception:  # noqa: BLE001 — config rota: se prueba con el binario por defecto
+            pass
+    ok, motivo = True, "sesión guardada" if con_token else "sesión del CLI"
+    try:
+        run_claude("Responde solo con la palabra: ok", videoqa_home(), claude_bin=claude_bin, timeout=180, allowed_tools=())
+    except ClaudeError as e:
+        ok = False
+        motivo = "no encuentro el programa claude" if "no se pudo ejecutar" in str(e) else "la sesión caducó o no está guardada"
+    except Exception as e:  # noqa: BLE001 — cualquier otro fallo (timeout de red, permisos…) también se reporta
+        ok = False
+        motivo = f"no pude comprobarlo: {type(e).__name__}"
+    write_doctor_state(ok, motivo)
+    print(f"CRITERIO {'OK' if ok else 'SIN SESIÓN'} · {motivo}")
+    return 0 if ok else 1
 
 
 def cmd_watch(args) -> int:
@@ -114,10 +164,16 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_brand)
     p = sub.add_parser("run", help="procesar un video")
     p.add_argument("video")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--hasta-juez", action="store_true",
+                   help="preparar las entradas del juez y parar (la sesión de Claude hace de juez)")
+    g.add_argument("--veredicto", metavar="JSON", help="reanudar con un veredicto ya escrito")
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser("watch", help="vigilar 01_Entrada/")
     p.add_argument("--once", action="store_true")
     p.set_defaults(fn=cmd_watch)
+    p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
+    p.set_defaults(fn=cmd_doctor)
     args = ap.parse_args(argv)
     return args.fn(args)
 

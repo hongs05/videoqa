@@ -59,7 +59,7 @@ def test_manifiestos_parsean_y_concuerdan() -> None:
 def test_hay_skills() -> None:
     nombres = {p.parent.name for p in skill_files()}
     assert SIDE_EFFECT_SKILLS <= nombres
-    assert {"revisar", "estado"} <= nombres
+    assert {"revisar", "estado", "sesion"} <= nombres
 
 
 @pytest.mark.parametrize("skill", skill_files(), ids=lambda p: p.parent.name)
@@ -86,6 +86,14 @@ def test_frontmatter_del_skill(skill: Path) -> None:
         )
 
 
+def test_sesion_es_invocable_por_el_modelo() -> None:
+    # El hook y el resto de skills le dicen a la persona que diga «arregla la sesión»;
+    # si el modelo no puede cargar la skill por sí solo, esa frase no hace nada.
+    skill = SKILLS_DIR / "sesion" / "SKILL.md"
+    fm = frontmatter(skill)
+    assert "disable-model-invocation" not in fm, f"{skill}: tiene que ser invocable por el modelo"
+
+
 def test_skill_del_motor_sigue_en_su_sitio() -> None:
     # El plugin se llevó los skills de la persona; el criterio del juez no.
     # Desde que el motor se instala como librería, el prompt vive dentro del
@@ -93,6 +101,19 @@ def test_skill_del_motor_sigue_en_su_sitio() -> None:
     assert SKILL_PATH.exists(), f"falta {SKILL_PATH}"
     assert SKILL_PATH.parent.name == "prompts"
     assert (ROOT / ".claude" / "skills" / "revisor-video" / "SKILL.md").exists()
+
+
+def test_ninguna_skill_usa_claude_auth_status() -> None:
+    # `claude auth status` no sabe del token guardado: siempre diría "caducada".
+    for skill in skill_files():
+        assert "claude auth status" not in skill.read_text(), f"{skill}: usa videoqa doctor"
+
+
+def test_ninguna_skill_manda_ejecutar_setup_token_a_pelo() -> None:
+    # setup-token imprime el token y NO lo guarda: solo vale a través del .command.
+    for skill in skill_files():
+        texto = skill.read_text()
+        assert "claude setup-token" not in texto or "guardar-token.command" in texto, skill
 
 
 def test_hook_de_sesion() -> None:

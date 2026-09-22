@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = [
     ROOT / "instalar" / "install.sh",
     ROOT / "instalar" / "Instalar VideoQA.command",
+    ROOT / "instalar" / "guardar-token.command",
     ROOT / "scripts" / "build_demo_zip.sh",
 ]
 

@@ -8,8 +8,13 @@
 #
 set -u
 
+PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+
 MOTOR="$HOME/videoqa"
-CONFIG="$HOME/.videoqa/config.yaml"
+HOME_VQA="${VIDEOQA_HOME:-$HOME/.videoqa}"
+CONFIG="$HOME_VQA/config.yaml"
+TOKEN="$HOME_VQA/token"
+DOCTOR="$HOME_VQA/doctor.json"
 
 if [ ! -d "$MOTOR" ]; then
   echo "Aura: motor no instalado → escribe /aura:instalar"
@@ -31,7 +36,8 @@ esac
 
 PEND="?"
 if [ -n "$DRIVE" ] && [ -d "$DRIVE/01_Entrada" ]; then
-  PEND="$(ls -1 "$DRIVE/01_Entrada" 2>/dev/null | wc -l | tr -d ' ')"
+  PEND="$(find "$DRIVE/01_Entrada" -maxdepth 1 -type f ! -name '.*' \
+            \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.m4v' \) 2>/dev/null | wc -l | tr -d ' ')"
 fi
 
 case "$PEND" in
@@ -47,5 +53,17 @@ else
   AUTO="automático: apagado"
 fi
 
-echo "Aura: motor OK · config OK · $COLA · $AUTO"
+SESION="sesión OK"
+CADUCADA="⚠️ sesión de Claude caducada → dime «arregla la sesión»"
+if [ -f "$DOCTOR" ] && grep -q '"ok": *false' "$DOCTOR" && { [ ! -f "$TOKEN" ] || [ "$DOCTOR" -nt "$TOKEN" ]; }; then
+  SESION="$CADUCADA"
+elif [ -f "$TOKEN" ]; then
+  SESION="sesión OK"
+elif claude auth status >/dev/null 2>&1; then
+  SESION="sesión OK"
+else
+  SESION="$CADUCADA"
+fi
+
+echo "Aura: motor OK · config OK · $COLA · $AUTO · $SESION"
 exit 0

@@ -1,7 +1,7 @@
 ---
 description: Deja VideoQA listo la primera vez - instala el motor, elige la carpeta de videos de Drive, carga la guía de marca y hace una prueba. Úsalo cuando la persona diga "instalar", "configurar" o "empezar".
 disable-model-invocation: true
-allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(brew install:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(uname:*) Bash(df:*) Bash(grep:*) Bash(echo:*) Bash(open:*) Bash(cat:*) Read Edit Write
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(brew install:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(uname:*) Bash(df:*) Bash(grep:*) Bash(echo:*) Bash(open:*) Bash(cat:*) Bash(curl:*) Bash(rsync:*) Read Edit Write
 ---
 
 # Instalar VideoQA (primera vez)
@@ -190,37 +190,28 @@ cp ~/videoqa/tests/fixtures/brand.json "<carpeta de videos>/_config/brand.json"
 Y explícale: "Dejé una marca de ejemplo para que puedas probar. Cuando tengas el PDF de la guía,
 dímelo y lo cargamos de verdad — mientras tanto, los avisos de color no van a servirte mucho."
 
-## Paso 8 — Dejar la sesión de Claude que no caduque
+## Paso 8 — Dejar la sesión de Claude guardada
 
-La revisión de criterio la hace Claude, y para eso necesita una sesión válida. **La sesión normal
-caduca cada pocos días**: cuando eso pasa, los videos vuelven con "no se pudo revisar del todo".
-Para evitarlo se crea una credencial de larga duración, pensada para que funcione sola.
+La revisión de criterio la hace Claude y necesita una sesión que no caduque. Se guarda una vez y
+ya. Dile, tal cual:
 
-```bash
-command -v claude
-```
-
-Si no aparece nada, vuelve al Paso 2 e instálalo ahí; no sigas sin él.
-
-Luego dile esto, tal cual:
-
-> Falta un paso que tienes que hacer tú, porque es iniciar sesión y yo no manejo contraseñas.
-> Te abro la Terminal: ahí escribe **claude setup-token** y pulsa Enter. Se abre el navegador,
-> autorizas con tu cuenta de Claude, y listo. Eso deja la sesión preparada para que las
-> revisiones funcionen solas sin que tengas que volver a entrar cada semana.
+> Falta un paso que haces tú, porque es iniciar sesión y yo no manejo contraseñas. Te abro una
+> ventana de la Terminal: se abre el navegador, autorizas con tu cuenta de Claude y, si te pide
+> pegar un código en la Terminal, lo pegas y pulsas Enter. Cuando diga "Listo", vuelves aquí.
 
 ```bash
-open -a Terminal
+open ~/videoqa/instalar/guardar-token.command
 ```
 
 Espera a que te diga que terminó y compruébalo:
 
 ```bash
-claude auth status
+uv run --project ~/videoqa videoqa doctor
 ```
 
-Si dice `"loggedIn": true`, sigue. Si no, pídele que repita el paso: sin esto la parte de
-criterio no va a funcionar (el resto de la revisión sí).
+Si empieza por `CRITERIO OK`, sigue. Si no, pídele que repita el paso una vez; si sigue fallando,
+continúa igual y avísale: "La parte de criterio no va a funcionar hasta que la sesión quede
+guardada; dime luego «arregla la sesión» y lo intentamos otra vez."
 
 ## Paso 9 — Prueba
 
@@ -236,8 +227,8 @@ Ese video trae **errores a propósito** (la palabra "Aprobecha" mal escrita y en
 está en la paleta). Según lo que salga:
 
 - 🔴 **NO APROBADO** — perfecto, todo funciona. Es el resultado esperado.
-- ❌ **ERROR** con "revisión de criterio pendiente" — los checks automáticos van bien, pero
-  Claude no pudo dar su criterio: casi siempre es la sesión del Paso 8. Vuelve a ese paso.
+- ⏸️ **PENDIENTE (sin criterio de Claude)** — los checks automáticos van bien, pero Claude no pudo
+  dar su criterio: es la sesión del Paso 8. Di "arregla la sesión" y vuelve a probar.
 - 🟢 **APROBADO** — algo no está revisando. Mira `~/.videoqa/videoqa.log` y dile que te avise.
 
 Cuando termine, abre la carpeta del resultado en Finder y explícale lo que ves, con el semáforo
@@ -268,7 +259,8 @@ Dile qué puede hacer a partir de ahora, con estas palabras:
   falla, resume en una frase qué pasó y propón el siguiente paso concreto. Ejemplos:
   - Modelo de voz no descarga → "No pude descargar el modelo de voz, parece cosa de internet.
     ¿Lo intentamos de nuevo?"
-  - Claude sin sesión → "Claude no tiene la sesión iniciada. Vamos a hacer el login otra vez."
+  - Claude sin sesión → "La sesión de Claude está caducada. Dime «arregla la sesión» y lo
+    dejamos listo en un minuto."
   - Carpeta de Drive sin sincronizar → "Google Drive todavía está sincronizando esa carpeta.
     Espera a que termine y me dices."
 - Para mostrar archivos, usa `open <carpeta>` y di "te lo abrí en Finder".

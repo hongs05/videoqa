@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 from typing import Callable
+
+from videoqa.config import load_token
 
 Runner = Callable[[str, Path], str]
 
@@ -15,11 +18,27 @@ class ClaudeError(Exception):
     """claude -p falló o devolvió error."""
 
 
+def claude_env() -> dict[str, str]:
+    """Entorno para `claude -p`: el del proceso, más el token guardado si lo hay.
+
+    `claude` lee CLAUDE_CODE_OAUTH_TOKEN; con eso el juez funciona aunque la
+    sesión interactiva del CLI haya caducado (o nunca se haya iniciado).
+    """
+    env = dict(os.environ)
+    token = load_token()
+    if token:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    return env
+
+
 def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int = 600,
                allowed_tools: tuple[str, ...] = ("Read",)) -> str:
-    cmd = [claude_bin, "-p", "--output-format", "json", "--allowedTools", ",".join(allowed_tools)]
+    cmd = [claude_bin, "-p", "--output-format", "json"]
+    if allowed_tools:
+        cmd += ["--allowedTools", ",".join(allowed_tools)]
     try:
-        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout)
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout,
+                               env=claude_env())
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"claude -p superó {timeout}s") from e
     except OSError as e:  # p.ej. FileNotFoundError si el binario `claude` no existe

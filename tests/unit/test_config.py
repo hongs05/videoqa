@@ -1,6 +1,7 @@
 from pathlib import Path
 import pytest
 from videoqa.config import Settings, load_settings, load_rules, videoqa_home
+from videoqa.config import load_token, token_path
 
 def test_load_settings_from_yaml(tmp_path):
     cfg = tmp_path / "config.yaml"
@@ -84,3 +85,23 @@ def test_carpeta_extra_repetida_se_ignora(tmp_path):
     cfg.write_text("drive_root: /tmp/drive\ncarpetas_extra:\n  - /tmp/drive\n  - /tmp/local\n")
     todas = load_all_settings(cfg)
     assert [s.drive_root for s in todas] == [Path("/tmp/drive"), Path("/tmp/local")]
+
+
+def test_token_path_vive_en_videoqa_home():
+    assert token_path() == videoqa_home() / "token"
+
+
+def test_load_token_none_si_no_existe():
+    assert load_token() is None
+
+
+def test_load_token_recorta_espacios_y_saltos():
+    token_path().parent.mkdir(parents=True, exist_ok=True)
+    token_path().write_text("  sk-ant-oat01-abc\n")
+    assert load_token() == "sk-ant-oat01-abc"
+
+
+def test_load_token_vacio_cuenta_como_ausente():
+    token_path().parent.mkdir(parents=True, exist_ok=True)
+    token_path().write_text("\n")
+    assert load_token() is None

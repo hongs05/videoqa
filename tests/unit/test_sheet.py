@@ -26,7 +26,7 @@ def test_row_for():
 
 def test_row_for_error_note_goes_in_report_column():
     row = row_for("x.mp4", "error", [], "", "", 0, datetime(2026, 1, 1), note="ffprobe falló")
-    assert row[2] == "❌ Error" and row[5] == "ffprobe falló"
+    assert row[2] == "⏸️ Pendiente" and row[5] == "ffprobe falló"
 
 
 def test_upsert_appends_then_updates():

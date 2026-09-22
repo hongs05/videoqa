@@ -1,6 +1,6 @@
 ---
 description: Revisa los videos pendientes y explica en español sencillo qué corregir y en qué segundo. Úsalo cuando la persona diga "revisa los videos nuevos", "revisa el de la promo" o "¿cómo quedó este video?".
-allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(open:*) Bash(ls:*) Read
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(open:*) Bash(ls:*) Read Write
 ---
 
 # Revisar videos
@@ -51,7 +51,45 @@ ofrécele ver el estado general.
 Cada video termina en una carpeta con su nombre, dentro de `02_Con_errores/` (si tiene problemas
 serios) o `03_Aprobado/`. Ahí dentro está `reporte.html` (o `reporte.md` si prefieres texto). Léelo con Read.
 
-## Paso 4 — Explicarlo
+## Paso 4 — Si un video vuelve ⏸️ PENDIENTE (sin criterio de Claude)
+
+Eso significa que los checks automáticos pasaron pero el juez no pudo dar criterio. **No le digas
+que el video "tiene errores"**: no se ha terminado de revisar. Haz tú de juez, sin pedir nada:
+
+1. Vuelve a lanzar el video en modo "hasta el juez". El video ya está en `02_Con_errores/<nombre>/`;
+   cópialo primero a `01_Entrada` (con `videoqa run` sobre esa ruta se copia solo):
+
+```bash
+uv run --project ~/videoqa videoqa run "<drive_root>/02_Con_errores/<nombre>/<archivo>" --hasta-juez
+```
+
+   La última línea es `JUEZ_PENDIENTE <carpeta>`.
+
+2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: te pide leer los
+   archivos de `<carpeta>/judge_input/` y las fotos de `<carpeta>/claude_frames/` (las rutas del
+   prompt son relativas a `<carpeta>`) y responder solo con un JSON.
+
+3. Escribe ese JSON, y nada más, con Write en `<carpeta>/veredicto.json`.
+
+4. Reanuda:
+
+```bash
+uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>" --veredicto "<carpeta>/veredicto.json"
+```
+
+   Y explica el resultado como siempre (Paso 5). Si vuelve a salir pendiente, es que el JSON no
+   era válido. El video ya está de vuelta en `02_Con_errores/<nombre>/` (la ruta de
+   `01_Entrada/<archivo>` ya no existe), así que reinténtalo **una sola vez** desde el punto 1,
+   lanzando otra vez el modo "hasta el juez" sobre el archivo dentro de `02_Con_errores/<nombre>/`,
+   escribiendo un `veredicto.json` corregido y repitiendo este punto 4. Si falla una segunda vez,
+   dile en una frase que no se pudo completar la revisión de criterio y que diga **"arregla la
+   sesión"**.
+
+5. Al final, avísale en una frase: "La sesión de Claude está caducada, por eso esta vez hice yo
+   la revisión de criterio. Dime **"arregla la sesión"** cuando puedas y así lo automático vuelve
+   a funcionar solo."
+
+## Paso 5 — Explicarlo
 
 Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
 
@@ -89,9 +127,9 @@ Reglas:
 - Si el reporte menciona una evidencia, di "abre la foto de evidencia" y nombra el archivo.
 - Si son varios videos, empieza con un resumen de una línea ("Revisé 4: 2 aprobados, 2 con cosas
   que corregir") y luego el detalle de cada uno.
-- Si el reporte tiene la sección "Pendientes de revisión (Claude no disponible)", explícalo así:
-  "Los chequeos automáticos pasaron, pero la revisión de criterio no se pudo hacer esta vez.
-  Vuelve a pedírmelo más tarde para tener el veredicto completo."
+- Si el reporte tiene la sección "Pendientes de revisión (Claude no disponible)", o su título
+  empieza por ⏸️, **no digas "pídemelo más tarde"**: sigue el Paso 4 ("Si un video vuelve ⏸️
+  PENDIENTE") y explica el resultado final una vez que hayas hecho tú de juez.
 - **Nunca muestres un traceback ni un error en crudo.** Resume en una frase y propón el siguiente
   paso: "No pude leer el video, parece que Drive aún lo está sincronizando. Espera a que termine
   el icono de Drive y me dices."

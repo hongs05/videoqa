@@ -6,7 +6,7 @@ from videoqa.claude_runner import ClaudeError
 from videoqa.config import load_rules
 from videoqa.findings import Finding
 from videoqa.job import Job
-from videoqa.judge import JudgeError, build_prompt, parse_verdict, prepare_inputs, run_judge, select_frames
+from videoqa.judge import JudgeError, build_prompt, parse_verdict, prepare_inputs, prepare_judge, run_judge, select_frames
 
 R = load_rules()
 SKILL = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "revisor-video" / "SKILL.md"
@@ -77,6 +77,27 @@ def test_select_frames_even_fill_reaches_last_second():
     assert seconds[-1]["t"] == pytest.approx(57.5)
     sel = select_frames(frames, [], [], max_frames=15)
     assert seconds[-1]["file"] in sel
+
+def _preparar(tmp_path):
+    """Preparación mínima reutilizada por los tests de `prepare_judge` (misma forma que
+    los tests vecinos de `run_judge`)."""
+    job = make_job(tmp_path)
+    brand = {"palette": []}
+    transcript = {"segments": []}
+    ocr = {"appearances": []}
+    technical = {"scene_cuts": []}
+    frames = frames_list()
+    rules = R
+    return job, brand, transcript, ocr, technical, frames, rules
+
+
+def test_prepare_judge_escribe_prompt_y_entradas(tmp_path):
+    job, brand, transcript, ocr, technical, frames, rules = _preparar(tmp_path)
+    prompt = prepare_judge(job, brand, "", transcript, ocr, technical, [], frames, rules, skill_path=SKILL, duration=6.0)
+    assert (job.dir / "judge_prompt.md").read_text() == prompt
+    assert (job.dir / "judge_input" / "transcript.json").exists()
+    assert "Duración del video: 6.0 s" in prompt
+
 
 def test_prepare_inputs_writes_files_and_resizes(tmp_path):
     job = make_job(tmp_path)
