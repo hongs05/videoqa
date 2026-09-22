@@ -3,6 +3,8 @@ import subprocess
 from pathlib import Path
 import pytest
 from videoqa.claude_runner import ClaudeError, extract_json, run_claude
+from videoqa.config import token_path
+from videoqa.claude_runner import claude_env
 
 def test_extract_json_plain_and_fenced():
     assert extract_json('{"a": 1}') == {"a": 1}
@@ -49,3 +51,30 @@ def test_run_claude_missing_binary_raises_claude_error(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(ClaudeError, match="no se pudo ejecutar"):
         run_claude("p", cwd=tmp_path, claude_bin="claude")
+
+
+def test_claude_env_sin_token_no_toca_la_variable(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in claude_env()
+
+
+def test_claude_env_con_token_lo_inyecta(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    token_path().parent.mkdir(parents=True, exist_ok=True)
+    token_path().write_text("sk-ant-oat01-xyz\n")
+    env = claude_env()
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-xyz"
+    assert env["PATH"]  # conserva el entorno del proceso
+
+
+def test_run_claude_pasa_el_env_al_subproceso(monkeypatch, tmp_path):
+    token_path().parent.mkdir(parents=True, exist_ok=True)
+    token_path().write_text("sk-ant-oat01-xyz")
+    visto = {}
+
+    def fake_run(cmd, **kw):
+        visto.update(kw)
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"is_error": False, "result": "ok"}), stderr="")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert run_claude("hola", tmp_path) == "ok"
+    assert visto["env"]["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-xyz"

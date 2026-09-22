@@ -37,6 +37,19 @@ def default_config_path() -> Path:
     return videoqa_home() / "config.yaml"
 
 
+def token_path() -> Path:
+    """Token de larga duración de Claude (lo escribe instalar/guardar-token.command)."""
+    return videoqa_home() / "token"
+
+
+def load_token() -> str | None:
+    try:
+        token = token_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return token or None
+
+
 @dataclass
 class Settings:
     drive_root: Path
