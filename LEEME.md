@@ -38,7 +38,7 @@ carpeta con su nombre.
 
 ## Cómo hablar con Claude
 
-Abre Claude (la aplicación, pestaña Code) y escríbele. Hay seis comandos:
+Abre Claude (la aplicación, pestaña Code) y escríbele. Hay siete comandos:
 
 | Comando | Para qué |
 | --- | --- |
@@ -48,6 +48,7 @@ Abre Claude (la aplicación, pestaña Code) y escríbele. Hay seis comandos:
 | `/aura:ajustar` | Cambiar qué se marca como error. |
 | `/aura:activar-automatico` | Que revise solo, sin pedírselo. |
 | `/aura:actualizar` | Ponerlo al día cuando haya versión nueva. |
+| `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |
 
 No hace falta usar los comandos: puedes escribirle normal, como a una persona. Por ejemplo:
 

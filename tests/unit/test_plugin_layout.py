@@ -19,7 +19,7 @@ PLUGIN = ROOT / "plugins" / "aura" / ".claude-plugin" / "plugin.json"
 SKILLS_DIR = ROOT / "plugins" / "aura" / "skills"
 
 # Skills con efectos secundarios: solo las lanza la persona, nunca el modelo.
-SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar"}
+SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar", "sesion"}
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
@@ -59,7 +59,7 @@ def test_manifiestos_parsean_y_concuerdan() -> None:
 def test_hay_skills() -> None:
     nombres = {p.parent.name for p in skill_files()}
     assert SIDE_EFFECT_SKILLS <= nombres
-    assert {"revisar", "estado"} <= nombres
+    assert {"revisar", "estado", "sesion"} <= nombres
 
 
 @pytest.mark.parametrize("skill", skill_files(), ids=lambda p: p.parent.name)
@@ -93,6 +93,19 @@ def test_skill_del_motor_sigue_en_su_sitio() -> None:
     assert SKILL_PATH.exists(), f"falta {SKILL_PATH}"
     assert SKILL_PATH.parent.name == "prompts"
     assert (ROOT / ".claude" / "skills" / "revisor-video" / "SKILL.md").exists()
+
+
+def test_ninguna_skill_usa_claude_auth_status() -> None:
+    # `claude auth status` no sabe del token guardado: siempre diría "caducada".
+    for skill in skill_files():
+        assert "claude auth status" not in skill.read_text(), f"{skill}: usa videoqa doctor"
+
+
+def test_ninguna_skill_manda_ejecutar_setup_token_a_pelo() -> None:
+    # setup-token imprime el token y NO lo guarda: solo vale a través del .command.
+    for skill in skill_files():
+        texto = skill.read_text()
+        assert "claude setup-token" not in texto or "guardar-token.command" in texto, skill
 
 
 def test_hook_de_sesion() -> None:

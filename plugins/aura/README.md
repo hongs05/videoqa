@@ -36,6 +36,7 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:ajustar` | Añade palabras que no debe marcar como error y cambia qué problemas bloquean la publicación. |
 | `/aura:activar-automatico` | Enciende (o apaga) la revisión automática de todo lo que subas a `01_Entrada`. |
 | `/aura:actualizar` | Pone el motor y los comandos al día, y te cuenta qué cambió. |
+| `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |
 
 **No hace falta escribir los comandos.** Puedes pedirlo con tus propias palabras: «revisa los
 videos nuevos», «¿cómo va la cola?», «no marques la palabra Kasa», «activa la revisión

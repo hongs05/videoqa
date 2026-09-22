@@ -1,6 +1,6 @@
 ---
 description: Revisa los videos pendientes y explica en español sencillo qué corregir y en qué segundo. Úsalo cuando la persona diga "revisa los videos nuevos", "revisa el de la promo" o "¿cómo quedó este video?".
-allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(open:*) Bash(ls:*) Read
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(open:*) Bash(ls:*) Read Write
 ---
 
 # Revisar videos
@@ -61,6 +61,39 @@ open "<carpeta del video revisado>"
 
 Y menciona: "Dentro también está `guion_real.md`: es lo que de verdad se dice en el video,
 transcrito y limpio, por si te sirve para el copy o los subtítulos."
+
+## Paso 4 — Si un video vuelve ⏸️ PENDIENTE (sin criterio de Claude)
+
+Eso significa que los checks automáticos pasaron pero el juez no pudo dar criterio. **No le digas
+que el video "tiene errores"**: no se ha terminado de revisar. Haz tú de juez, sin pedir nada:
+
+1. Vuelve a lanzar el video en modo "hasta el juez". El video ya está en `02_Con_errores/<nombre>/`;
+   cópialo primero a `01_Entrada` (con `videoqa run` sobre esa ruta se copia solo):
+
+```bash
+uv run --project ~/videoqa videoqa run "<drive_root>/02_Con_errores/<nombre>/<archivo>" --hasta-juez
+```
+
+   La última línea es `JUEZ_PENDIENTE <carpeta>`.
+
+2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: te pide leer los
+   archivos de `<carpeta>/judge_input/` y las fotos de `<carpeta>/claude_frames/` (las rutas del
+   prompt son relativas a `<carpeta>`) y responder solo con un JSON.
+
+3. Escribe ese JSON, y nada más, con Write en `<carpeta>/veredicto.json`.
+
+4. Reanuda:
+
+```bash
+uv run --project ~/videoqa videoqa run "<drive_root>/01_Entrada/<archivo>" --veredicto "<carpeta>/veredicto.json"
+```
+
+   Y explica el resultado como siempre (Paso 3). Si vuelve a salir pendiente, es que el JSON no
+   era válido: vuelve al punto 2 una sola vez.
+
+5. Al final, avísale en una frase: "La sesión de Claude está caducada, por eso esta vez hice yo
+   la revisión de criterio. Dime **"arregla la sesión"** cuando puedas y así lo automático vuelve
+   a funcionar solo."
 
 ## Cómo explicar el resultado
 

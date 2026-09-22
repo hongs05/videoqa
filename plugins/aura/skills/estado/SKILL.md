@@ -1,6 +1,6 @@
 ---
 description: Cuenta cómo va la cola de videos, cuántos hay pendientes, cómo quedaron los últimos y si lo automático está encendido. Úsalo cuando la persona diga "¿cómo va la cola?" o "estado".
-allowed-tools: Bash(ls:*) Bash(tail:*) Bash(launchctl print:*) Bash(cat:*) Read
+allowed-tools: Bash(ls:*) Bash(tail:*) Bash(launchctl print:*) Bash(cat:*) Bash(uv run --project ~/videoqa videoqa doctor:*) Read
 ---
 
 # Estado de la revisión
@@ -84,17 +84,14 @@ pruebas, ninguna." No las mezcles en un solo número.
 
 ## Comprobar que Claude puede dar criterio
 
-La sesión de Claude caduca cada cierto tiempo y, cuando pasa, los videos vuelven con "revisión de
-criterio pendiente". Compruébalo siempre:
+Cuando la sesión de Claude caduca, los videos vuelven con "⏸️ PENDIENTE (sin criterio de Claude)".
+Compruébalo siempre:
 
 ```bash
-claude auth status
+uv run --project ~/videoqa videoqa doctor
 ```
 
-Si `loggedIn` es `false`, díselo en una frase y dale la solución concreta:
+Si no empieza por `CRITERIO OK`, díselo en una frase y dale la salida:
 
-> La sesión de Claude caducó, por eso los últimos videos no traen la parte de criterio. Se
-> arregla en un minuto: te abro la Terminal, escribe ahí **claude setup-token** y autoriza en el
-> navegador.
-
-Y ábrele la Terminal con `open -a Terminal`.
+> La sesión de Claude caducó, por eso los últimos videos salen pendientes. Dime **"arregla la
+> sesión"** y lo dejamos listo en un minuto.
