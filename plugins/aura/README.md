@@ -5,6 +5,10 @@ video antes de que salga. Mira la ortografía del texto en pantalla, los colores
 lo que se dice coincida con lo que se escribe, los silencios, las pantallas en negro y las tomas
 fallidas. Te devuelve **qué corregir y en qué segundo**, con una foto del momento exacto.
 
+Aura también **arma y revisa el calendario de contenido del mes**: convierte la estrategia (o las
+cantidades que le digas) en un Excel con el formato de la agencia, y revisa un calendario contra la
+estrategia para decirte qué falta o no cumple.
+
 No hace falta saber nada técnico. Aura instala y maneja el motor por ti.
 
 ## Instalación
@@ -36,6 +40,7 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:ajustar` | Añade palabras que no debe marcar como error y cambia qué problemas bloquean la publicación. |
 | `/aura:activar-automatico` | Enciende (o apaga) la revisión automática de todo lo que subas a `01_Entrada`. |
 | `/aura:actualizar` | Pone el motor y los comandos al día, y te cuenta qué cambió. |
+| `/aura:calendario` | Arma el calendario del mes en Excel (desde la estrategia o las cantidades que le digas) o revisa uno contra la estrategia. |
 | `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |
 
 **No hace falta escribir los comandos.** Puedes pedirlo con tus propias palabras: «revisa los

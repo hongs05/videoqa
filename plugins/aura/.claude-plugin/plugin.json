@@ -1,7 +1,7 @@
 {
   "name": "aura",
   "version": "1.2.0",
-  "description": "Revisa tus videos antes de publicarlos y te dice en español qué corregir y en qué segundo. Instala y maneja el motor VideoQA hablando, sin comandos técnicos.",
+  "description": "Revisa tus videos antes de publicarlos y arma o revisa el calendario de contenido del mes — todo en español, sin comandos técnicos.",
   "author": {
     "name": "Jeffrey Molin Rocha"
   },
@@ -15,6 +15,8 @@
     "espanol",
     "redes-sociales",
     "reels",
-    "tiktok"
+    "tiktok",
+    "calendario",
+    "excel"
   ]
 }
