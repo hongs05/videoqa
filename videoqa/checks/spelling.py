@@ -79,6 +79,74 @@ def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
     return out
 
 
+# Palabras cortas válidas al separar palabras pegadas. Lista cerrada: el diccionario
+# acepta muchas abreviaturas de 2 letras y con él una falta real ("kasa") se partía en
+# trozos "conocidos" ("ka" + "sa"). "ti" queda fuera a propósito: "IMPORTANTI" no es
+# "importan ti".
+_SHORT_WORDS = {"y", "a", "o", "e", "u", "de", "la", "el", "en", "es", "un", "lo", "le", "se", "me",
+                "te", "mi", "tu", "su", "ya", "no", "si", "sí", "tú", "él", "mí", "al", "ha", "he",
+                "va", "ve", "da", "di", "ni", "yo", "os"}
+
+
+class _Vocab:
+    """Decide qué hacer con una palabra que el diccionario no reconoce.
+
+    Tres casos que en los reportes reales salían como bloqueantes y no lo son:
+    - El talento la DICE y Whisper la escribe igual ("Mojito", "backdrops", "Stay"):
+      es una palabra válida que falta en el diccionario de macOS.
+    - Son palabras pegadas ("Yasíescomo" = "Y así es como"): el OCR de Vision pierde los
+      espacios en las tipografías de subtítulo apretadas. Se deja como `info`.
+    - Es un trozo de una palabra más larga que se dice o se ve en ese momento
+      ("ocktails" de "cocktails"): el frame cazó el subtítulo a mitad de animación.
+    """
+
+    def __init__(self, checker, glossary: set[str], segments: list[dict], appearances: list[dict]):
+        self.checker, self.glossary = checker, glossary
+        self.segments, self.appearances = segments, appearances
+        self.spoken = {w.lower() for s in segments for w in WORD_RE.findall(s["text"])}
+        self._known: dict[str, bool] = {}
+
+    def known(self, part: str) -> bool:
+        if len(part) <= 2:
+            return part in _SHORT_WORDS
+        if part in self.glossary or part in self.spoken:
+            return True
+        if part not in self._known:
+            self._known[part] = not self.checker.unknown([part])
+        return self._known[part]
+
+    def split(self, word: str) -> list[str] | None:
+        """Parte `word` en ≥2 palabras conocidas (la de menos trozos), o None."""
+        w = word.lower()
+        best: list[list[str] | None] = [[]] + [None] * len(w)
+        for end in range(1, len(w) + 1):
+            for start in range(end):
+                prev = best[start]
+                if prev is None or (best[end] is not None and len(prev) + 1 >= len(best[end])):
+                    continue
+                if self.known(w[start:end]):
+                    best[end] = prev + [w[start:end]]
+        parts = best[len(w)]
+        # Al menos dos palabras "de verdad" y una de 3+ letras: una palabra más una letra
+        # suelta ("casaa" = "casa" + "a") es la forma típica de una errata, no de un pegado.
+        if not parts or sum(len(p) >= 2 for p in parts) < 2 or max(len(p) for p in parts) < 3:
+            return None
+        return parts
+
+    def is_fragment(self, word: str, a: dict) -> bool:
+        w = word.lower()
+        t0, t1 = a["t_start"] - 2.0, a["t_end"] + 2.0
+        near = [s["text"] for s in self.segments if s["start"] < t1 and t0 < s["end"]]
+        near += [b["text"] for b in self.appearances if b is not a and b["t_start"] < t1 and t0 < b["t_end"]]
+        return any(len(o) > len(w) and w in o.lower() for text in near for o in WORD_RE.findall(text))
+
+    def classify(self, word: str, a: dict) -> str:
+        """'ok' (no es error), 'glued' (palabras pegadas) o 'unknown'."""
+        if word.lower() in self.spoken or self.is_fragment(word, a):
+            return "ok"
+        return "glued" if self.split(word) else "unknown"
+
+
 def _punctuation_issues(text: str, opened: str = "") -> list[str]:
     """`opened`: texto que está en pantalla a la vez (otras líneas del mismo rótulo).
 
@@ -117,12 +185,14 @@ def _also_at(times: list[float]) -> str:
     return f" También aparece en {shown}{more}."
 
 
-def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, checker=None) -> list[Finding]:
+def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, checker=None,
+                   segments: list[dict] | None = None) -> list[Finding]:
     if checker is None:
         from videoqa import backends
 
         checker = backends.get_speller()()
     sev = rules["severities"]
+    vocab = _Vocab(checker, glossary, segments or [], appearances)
     min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
     # El mismo rótulo (o la misma palabra mal escrita) suele aparecer varias veces: el
     # OCR parte una aparición en dos si falla un frame, y los subtítulos repiten el
@@ -138,7 +208,10 @@ def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, che
             continue
         text = a["text"]
         scene = is_scene_text(a, rules)
-        bad = unknown_words(text, checker, glossary)
+        unknown = unknown_words(text, checker, glossary)
+        kinds = {w: vocab.classify(w, a) for w in unknown}
+        bad = [w for w in unknown if kinds[w] == "unknown"]
+        glued = [w for w in unknown if kinds[w] == "glued"]
         if bad:
             key = (scene, *sorted({w.lower() for w in bad}))
             if key in spell:
@@ -153,6 +226,20 @@ def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, che
                     title=f"Posible error ortográfico: {', '.join(dict.fromkeys(bad))}",
                     detail=f'{where}: "{text}".', suggestion=fixes,
                     frame=a.get("frame"), bbox=a.get("bbox"), source="code", check="spelling_unknown_word"), [])
+        if glued:
+            key = ("glued", *sorted({w.lower() for w in glued}))
+            if key in spell:
+                spell[key][1].append(a["t_start"])
+            else:
+                sep = ", ".join(f'{w} → "{" ".join(vocab.split(w))}"' for w in dict.fromkeys(glued))
+                spell[key] = (Finding(
+                    id=f"glued-{i}", type="ortografia", severity=sev.get("spelling_glued_words", "info"),
+                    t_start=a["t_start"], t_end=a["t_end"],
+                    title=f"Palabras juntas: {', '.join(dict.fromkeys(glued))}",
+                    detail=(f'Texto leído: "{text}". Casi siempre es el OCR, que pierde los espacios en '
+                            "tipografías apretadas; mira el frame para confirmarlo."),
+                    suggestion=f"Solo si en el video se ven pegadas, separarlas: {sep}.",
+                    frame=a.get("frame"), bbox=a.get("bbox"), source="code", check="spelling_glued_words"), [])
         if scene:
             continue  # la puntuación de un cartel o una camiseta no la decide el editor
         for k, issue in enumerate(_punctuation_issues(text, _concurrent_text(appearances, i))):

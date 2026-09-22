@@ -48,3 +48,10 @@ def test_occluded_agrupa_repeticiones_de_la_misma_zona():
 def test_check_timing_ignora_ocr_de_baja_confianza():
     ruido = app("nka", 1.0, 1.5, (0.1, 0.9, 0.2, 0.05)); ruido["conf"] = 0.2
     assert check_timing([ruido], [], R) == []
+
+
+def test_textos_cortos_se_agrupan_en_un_solo_aviso():
+    """331 avisos en un reel con subtítulos palabra por palabra: uno solo basta."""
+    apps = [app(f"palabra{i}", i * 0.5, i * 0.5 + 0.5) for i in range(12)]
+    fs = check_visible_short(apps, R)
+    assert len(fs) == 1 and fs[0].title == "12 textos visibles menos de 1.0 s" and "y 7 más" in fs[0].detail

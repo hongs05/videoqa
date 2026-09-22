@@ -91,7 +91,8 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
         # feed vertical; en 16:9 el check no aplica.
         vertical = int(p["height"]) > int(p["width"])
-        code_findings = (check_spelling(apps, glossary, rules) + check_brand_colors(apps, brand, rules)
+        code_findings = (check_spelling(apps, glossary, rules, segments=transcript["segments"])
+                         + check_brand_colors(apps, brand, rules)
                          + check_timing(apps, transcript["segments"], rules, vertical=vertical)
                          + check_technical(p, technical, rules))
         save_findings(job.path("findings_code.json"), code_findings)

@@ -34,14 +34,23 @@ def _base(i: str, a: dict, typ: str, sev: str, title: str, detail: str, suggesti
 def check_visible_short(appearances: list[dict], rules: dict) -> list[Finding]:
     min_s = float(rules["thresholds"]["min_text_visible_s"])
     sev = rules["severities"]["text_visible_short"]
-    out = []
-    for i, a in enumerate(appearances):
-        dur = a["t_end"] - a["t_start"]
-        if dur < min_s:
-            out.append(_base(f"short-{i}", a, "tecnico", sev, f"Texto visible solo {dur:.1f} s",
-                             f'"{a["text"]}" aparece menos de {min_s:.1f} s; puede ser ilegible.',
-                             "Mantener el texto en pantalla al menos 1 s.", "text_visible_short"))
-    return out
+    short = [(i, a) for i, a in enumerate(appearances) if a["t_end"] - a["t_start"] < min_s]
+    if not short:
+        return []
+    # Un aviso por texto daba cientos en videos con subtítulos palabra por palabra
+    # (331 en un reel de 55 s). Es un solo patrón de edición: un solo hallazgo.
+    i, a = short[0]
+    dur = a["t_end"] - a["t_start"]
+    if len(short) == 1:
+        return [_base(f"short-{i}", a, "tecnico", sev, f"Texto visible solo {dur:.1f} s",
+                      f'"{a["text"]}" aparece menos de {min_s:.1f} s; puede ser ilegible.',
+                      "Mantener el texto en pantalla al menos 1 s.", "text_visible_short")]
+    shown = "; ".join(f'"{b["text"]}" ({b["t_start"]:.1f} s)' for _, b in short[:5])
+    more = f" y {len(short) - 5} más" if len(short) > 5 else ""
+    return [_base(f"short-{i}", a, "tecnico", sev, f"{len(short)} textos visibles menos de {min_s:.1f} s",
+                  f"Por ejemplo: {shown}{more}. Si los subtítulos van palabra por palabra a propósito, "
+                  "es el estilo y no hay que tocar nada.",
+                  "Si no es intencional, mantener cada texto en pantalla al menos 1 s.", "text_visible_short")]
 
 
 def check_occluded(appearances: list[dict], rules: dict, vertical: bool = True) -> list[Finding]:

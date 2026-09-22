@@ -2,6 +2,7 @@
 severities:
   spelling_unknown_word: blocker
   spelling_punctuation: warning
+  spelling_glued_words: info  # "Yasíescomo": casi siempre el OCR perdiendo espacios
   spelling_scene_text: info   # texto de la escena (ropa, carteles): no lo corrige el editor
   brand_color: blocker
   text_visible_short: warning

@@ -45,6 +45,9 @@ fondo. Ese texto no lo escribió el editor ni lo puede corregir en la edición.
 
 1. **Ortografía y tildes en pantalla** (usa contexto: "esta"/"está", "mas"/"más", "si"/"sí").
    Un nombre propio escrito de dos formas distintas en el mismo video es blocker.
+   Los hallazgos `spelling_glued_words` ("Yasíescomo") suelen ser el OCR perdiendo espacios:
+   si en el frame las palabras se ven separadas, descártalos; si de verdad están pegadas en
+   el video, repórtalo tú como `ortografia` / `blocker`.
 2. **Marca**: violaciones a `rules`; logo ausente si `logo_required`; fuente visiblemente distinta.
    El color exacto ya lo revisa el código — no repitas hallazgos de `findings_code.json`, confírmalos.
 3. **Inconsistencias guion ↔ pantalla**: cifras, precios, fechas, nombres, porcentajes que
