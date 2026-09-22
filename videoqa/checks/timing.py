@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from videoqa.checks.scene_text import is_scene_text
 from videoqa.findings import Finding
 
 _TOKEN = re.compile(r"[a-záéíóúüñ0-9]+")
@@ -106,5 +107,8 @@ def check_timing(appearances: list[dict], segments: list[dict], rules: dict, ver
     # que disparaba "texto visible 0.5 s" y "zona tapada" sobre texto que no existe.
     min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
     appearances = [a for a in appearances if float(a.get("conf", 1.0)) >= min_conf]
-    return (check_visible_short(appearances, rules) + check_occluded(appearances, rules, vertical)
-            + check_desync(appearances, segments, rules))
+    # Duración mínima y zona segura son reglas de los rótulos de edición: una camiseta
+    # que entra y sale de cuadro no es "texto ilegible".
+    overlays = [a for a in appearances if not is_scene_text(a, rules)]
+    return (check_visible_short(overlays, rules) + check_occluded(overlays, rules, vertical)
+            + check_desync(overlays, segments, rules))

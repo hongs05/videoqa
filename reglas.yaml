@@ -2,6 +2,7 @@
 severities:
   spelling_unknown_word: blocker
   spelling_punctuation: warning
+  spelling_scene_text: info   # texto de la escena (ropa, carteles): no lo corrige el editor
   brand_color: blocker
   text_visible_short: warning
   subtitle_desync: warning
@@ -23,6 +24,8 @@ thresholds:
   silence_min_s: 2.0
   edge_margin_s: 0.5        # ignorar negro/silencio en los primeros/últimos N s
   ocr_min_conf: 0.5         # confianza OCR mínima para checks de ortografía/color
+  scene_text_motion: 0.03   # si el texto se desplaza más que esto entre frames, es de la escena (ropa, cartel)
+  scene_text_scale: 1.25    # o si su tamaño cambia más que esto (se acerca/aleja la cámara)
   occluded_bottom: 0.80     # y+h por encima de esto = tapado por UI de TikTok/Reels
   occluded_right: 0.85      # x+w por encima de esto = tapado por iconos laterales
   aspect_tolerance: 0.02

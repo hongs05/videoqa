@@ -9,7 +9,7 @@ from PIL import Image
 
 from videoqa.claude_runner import ClaudeError, Runner, extract_json
 from videoqa.config import SKILL_PATH
-from videoqa.findings import SEVERITIES, TYPES, Finding
+from videoqa.findings import SEVERITIES, SEVERITY_ORDER, TYPES, Finding
 from videoqa.job import Job
 
 log = logging.getLogger("videoqa")
@@ -35,7 +35,10 @@ def select_frames(frames: list[dict], appearances: list[dict], code_findings: li
     reserved = max_frames // 3
     scene_cap = max_frames - reserved
 
-    priority_files = [fnd.frame for fnd in code_findings] + [a.get("frame") for a in appearances]
+    # Bloqueantes primero: el juez solo puede descartar un falso positivo (p.ej. el logo
+    # de una camiseta) si ve el frame; con muchos hallazgos, el cupo se agotaba antes.
+    by_severity = sorted(code_findings, key=lambda fnd: SEVERITY_ORDER.get(fnd.severity, 99))
+    priority_files = [fnd.frame for fnd in by_severity] + [a.get("frame") for a in appearances]
     scene_files = [f["file"] for f in frames if f["kind"] == "scene"]
 
     added_priority = 0

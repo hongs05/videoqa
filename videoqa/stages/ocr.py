@@ -8,6 +8,8 @@ from videoqa.job import Job
 
 _WS = re.compile(r"\s+")
 TEXT_SIM_MIN = 0.75  # tolera pequeñas variaciones de OCR entre frames consecutivos
+SAME_TEXT_MIN = 0.9  # casi el mismo texto: se sigue aunque la caja se haya movido…
+MOVE_MAX = 0.15      # …hasta esta distancia entre centros (normalizada)
 
 
 _DIGITS = re.compile(r"\d+")
@@ -65,6 +67,25 @@ def _ocr_frame_apple(path: Path) -> list[dict]:
     return items
 
 
+def _center_dist(a: list[float], b: list[float]) -> float:
+    return (((a[0] + a[2] / 2) - (b[0] + b[2] / 2)) ** 2 + ((a[1] + a[3] / 2) - (b[1] + b[3] / 2)) ** 2) ** 0.5
+
+
+def _motion(boxes: list[list[float]]) -> tuple[float, float]:
+    """Desplazamiento máximo del centro (normalizado) y razón de tamaño entre frames.
+
+    Un rótulo o subtítulo puesto en edición se queda quieto y del mismo tamaño; el texto
+    que forma parte de la escena (camiseta, cartel, empaque) se mueve y cambia de
+    tamaño con la cámara o con la persona.
+    """
+    centers = [(x + w / 2, y + h / 2) for x, y, w, h in boxes]
+    moved = max((((cx - ox) ** 2 + (cy - oy) ** 2) ** 0.5
+                 for cx, cy in centers for ox, oy in centers), default=0.0)
+    heights = [h for *_, h in boxes if h > 0]
+    scale = max(heights) / min(heights) if heights else 1.0
+    return round(moved, 4), round(scale, 3)
+
+
 def dedupe(raw: list[dict], period: float, gap: float = 1.5, iou_min: float = 0.3) -> list[dict]:
     """Agrupa detecciones del mismo texto en frames consecutivos en 'apariciones'."""
     apps: list[dict] = []
@@ -73,28 +94,38 @@ def dedupe(raw: list[dict], period: float, gap: float = 1.5, iou_min: float = 0.
             key = norm_text(it["text"])
             match = None
             for a in apps:
-                if (frame["t"] - a["_last_t"] <= gap and iou(a["bbox"], it["bbox"]) >= iou_min
-                        and _texts_compatible(a["_key"], key)
-                        and SequenceMatcher(None, a["_key"], key).ratio() >= TEXT_SIM_MIN):
+                if frame["t"] - a["_last_t"] > gap or not _texts_compatible(a["_key"], key):
+                    continue
+                ratio = SequenceMatcher(None, a["_key"], key).ratio()
+                if ratio < TEXT_SIM_MIN:
+                    continue
+                # El texto de la escena (una camiseta) se mueve entre frames y su caja
+                # apenas se solapa con la anterior; sin esta vía cada frame era una
+                # aparición suelta, sin `motion`, y pasaba por rótulo de 0.5 s.
+                if (iou(a["_boxes"][-1], it["bbox"]) >= iou_min
+                        or (ratio >= SAME_TEXT_MIN and _center_dist(a["_boxes"][-1], it["bbox"]) <= MOVE_MAX)):
                     match = a
                     break
             if match is None:
                 apps.append({"text": it["text"], "_key": key, "_conf": it["conf"], "bbox": it["bbox"],
                              "t_start": frame["t"], "_last_t": frame["t"], "frame": frame["file"],
-                             "frames": [frame["file"]]})
+                             "frames": [frame["file"]], "_boxes": [it["bbox"]]})
             else:
                 match["_last_t"] = frame["t"]
+                match["_boxes"].append(it["bbox"])
                 match["frames"].append(frame["file"])
                 if it["conf"] > match["_conf"]:
                     match["text"], match["_conf"], match["_key"] = it["text"], it["conf"], key
     out = []
     for a in apps:
+        motion, scale = _motion(a["_boxes"])
         # `conf` = confianza MÁXIMA vista para esta aparición. Se expone (antes se
         # descartaba con el resto de campos `_`) porque los checks de ortografía y
         # color usan un umbral mínimo: el OCR lee texturas y bordados de la ropa con
         # confianza muy baja y esos artefactos generaban bloqueantes falsos.
         out.append({"text": a["text"], "conf": a["_conf"], "bbox": a["bbox"], "t_start": a["t_start"],
-                    "t_end": round(a["_last_t"] + period, 3), "frame": a["frame"], "frames": a["frames"]})
+                    "t_end": round(a["_last_t"] + period, 3), "frame": a["frame"], "frames": a["frames"],
+                    "motion": motion, "scale": scale})
     return out
 
 

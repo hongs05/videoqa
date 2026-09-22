@@ -359,3 +359,13 @@ def test_parse_verdict_confirmed_como_texto_no_tira_el_veredicto():
     v = parse_verdict(json.dumps({"findings": [], "guion_real_md": "## Escena 1 [0:00] Hola",
                                   "confirmed_code_findings": "spell-0"}))
     assert v["confirmed_code_findings"] == ["spell-0"]
+
+
+def test_select_frames_da_prioridad_al_frame_de_los_bloqueantes():
+    """Con muchos avisos, el frame del bloqueante quedaba fuera y el juez no podía descartarlo."""
+    frames = frames_list(40)
+    avisos = [Finding(id=f"w{i}", type="tecnico", severity="warning", t_start=0, t_end=1, title="t",
+                      detail="d", frame=f"frames/sec_{i + 1:04d}.jpg") for i in range(10)]
+    bloqueante = Finding(id="b", type="ortografia", severity="blocker", t_start=19, t_end=19.5, title="t",
+                         detail="d", frame="frames/sec_0039.jpg")
+    assert "frames/sec_0039.jpg" in select_frames(frames, [], avisos + [bloqueante], 6)

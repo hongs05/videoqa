@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from videoqa.checks.colors import hex_delta_e
+from videoqa.checks.scene_text import is_scene_text
 from videoqa.findings import Finding
 
 log = logging.getLogger("videoqa")
@@ -23,6 +24,9 @@ def check_brand_colors(appearances: list[dict], brand: dict, rules: dict) -> lis
         # OCR de baja confianza = casi siempre un artefacto (logo bordado, textura);
         # su color no representa un rótulo real y disparaba bloqueantes falsos.
         if float(a.get("conf", 1.0)) < min_conf:
+            continue
+        # La paleta de marca aplica a los rótulos de edición, no a la ropa o los carteles.
+        if is_scene_text(a, rules):
             continue
         # Un subtítulo con contorno tiene DOS tintas legítimas (relleno y borde):
         # basta con que UNA esté en paleta para que la aparición pase.

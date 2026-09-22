@@ -17,11 +17,27 @@ explica por qué.
 - `judge_input/brand.json` — paleta (hex), fuentes y reglas escritas de la marca.
 - `judge_input/glosario.txt` — palabras válidas aunque no estén en el diccionario.
 - `judge_input/transcript.json` — lo que DICE el talento, con `segments[{start,end,text}]`.
-- `judge_input/ocr.json` — textos EN PANTALLA: `appearances[{text,bbox,t_start,t_end,color_hex,frame}]`.
+- `judge_input/ocr.json` — textos EN PANTALLA: `appearances[{text,bbox,t_start,t_end,color_hex,frame,motion,scale}]`.
 - `judge_input/technical.json` — negros, congelados, cortes de escena, silencios, audio.
 - `judge_input/findings_code.json` — hallazgos ya detectados por código. Debes CONFIRMAR o
   DESCARTAR cada uno por su `id` (descarta solo con razón clara: nombre propio, jerga válida,
-  falso positivo del OCR, etc.).
+  falso positivo del OCR, texto de la escena, etc.).
+
+## Texto de la escena ≠ rótulo de edición
+
+El OCR lee TODO el texto del frame, no solo los rótulos y subtítulos que puso el editor:
+estampados y logos de la ropa, carteles y letreros del local, menús, empaques, pantallas al
+fondo. Ese texto no lo escribió el editor ni lo puede corregir en la edición.
+
+- Descarta en `dismissed_code_findings` todo hallazgo de ortografía, puntuación, color,
+  duración o zona tapada cuyo texto sea de la escena. Razón: "texto de la escena (camiseta)",
+  "(cartel del local)", etc. Mira el frame del hallazgo y su `bbox` para decidirlo.
+- Pistas: la tipografía sigue la forma o la perspectiva del objeto, el texto está impreso en
+  ropa o en una superficie, o en `ocr.json` tiene `motion` o `scale` altos (se mueve o cambia
+  de tamaño con la cámara). Las palabras pegadas o partidas ("SUSHICD") suelen ser un logo
+  mal leído, no una falta.
+- No lo reportes tú tampoco como error de ortografía. Solo es un problema si es un blooper
+  visual (marca de la competencia, texto ofensivo) o si contradice lo que se dice.
 - `claude_frames/*.jpg` — frames clave; el nombre incluye el segundo (`03_0012.5s.jpg` = 12.5 s).
   Míralos TODOS con Read.
 

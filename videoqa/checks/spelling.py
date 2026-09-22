@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from videoqa.checks.scene_text import is_scene_text
 from videoqa.findings import Finding
 
 WORD_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+")
@@ -136,19 +137,24 @@ def check_spelling(appearances: list[dict], glossary: set[str], rules: dict, che
         if float(a.get("conf", 1.0)) < min_conf:
             continue
         text = a["text"]
+        scene = is_scene_text(a, rules)
         bad = unknown_words(text, checker, glossary)
         if bad:
-            key = tuple(sorted({w.lower() for w in bad}))
+            key = (scene, *sorted({w.lower() for w in bad}))
             if key in spell:
                 spell[key][1].append(a["t_start"])
             else:
                 fixes = ", ".join(f"{w} → {checker.correction(w) or '?'}" for w in dict.fromkeys(bad))
+                where = "Texto de la escena (ropa, cartel, empaque)" if scene else "Texto en pantalla"
                 spell[key] = (Finding(
-                    id=f"spell-{i}", type="ortografia", severity=sev["spelling_unknown_word"],
+                    id=f"spell-{i}", type="ortografia",
+                    severity=(sev.get("spelling_scene_text", "info") if scene else sev["spelling_unknown_word"]),
                     t_start=a["t_start"], t_end=a["t_end"],
                     title=f"Posible error ortográfico: {', '.join(dict.fromkeys(bad))}",
-                    detail=f'Texto en pantalla: "{text}".', suggestion=fixes,
+                    detail=f'{where}: "{text}".', suggestion=fixes,
                     frame=a.get("frame"), bbox=a.get("bbox"), source="code", check="spelling_unknown_word"), [])
+        if scene:
+            continue  # la puntuación de un cartel o una camiseta no la decide el editor
         for k, issue in enumerate(_punctuation_issues(text, _concurrent_text(appearances, i))):
             key = (issue, _norm(text))
             if key in punct:
