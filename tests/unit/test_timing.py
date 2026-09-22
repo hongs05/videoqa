@@ -37,3 +37,14 @@ def test_check_timing_combines():
     segs = [{"start": 2.0, "end": 5.0, "text": "aprovecha la oferta de verano"}]
     fs = check_timing([app(t0=4.0, t1=4.5, bbox=(0.1, 0.9, 0.5, 0.1))], segs, R)
     assert sorted(f.check for f in fs) == ["subtitle_desync", "text_occluded", "text_visible_short"]
+
+
+def test_occluded_agrupa_repeticiones_de_la_misma_zona():
+    bottom = (0.1, 0.85, 0.5, 0.1)
+    fs = check_occluded([app("Hola", 1, 2, bottom), app("mundo", 2, 3, bottom), app("adiós", 3, 4, bottom)], R)
+    assert len(fs) == 1 and "2 texto(s) más" in fs[0].detail and '"mundo" (2.0 s)' in fs[0].detail
+
+
+def test_check_timing_ignora_ocr_de_baja_confianza():
+    ruido = app("nka", 1.0, 1.5, (0.1, 0.9, 0.2, 0.05)); ruido["conf"] = 0.2
+    assert check_timing([ruido], [], R) == []

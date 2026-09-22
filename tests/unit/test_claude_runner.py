@@ -10,6 +10,18 @@ def test_extract_json_plain_and_fenced():
     assert extract_json('{"a": 1}') == {"a": 1}
     assert extract_json('Aquí va:\n```json\n{"a": [1, 2]}\n```\ngracias') == {"a": [1, 2]}
 
+def test_extract_json_ignora_llaves_en_el_texto_de_alrededor():
+    """Del primer '{' al último '}' fallaba si el texto de alrededor traía llaves."""
+    assert extract_json('Revisé {todo}. Veredicto: {"a": 1} (fin {ok})') == {"a": 1}
+    assert extract_json('{"a": 1}\n\nY otro: {"b": 2}') == {"a": 1}
+    assert extract_json('```json\n{"md": "```code```"}\n```') == {"md": "```code```"}
+
+
+def test_extract_json_lista_no_es_veredicto():
+    with pytest.raises(ValueError):
+        extract_json('[1, 2]')
+
+
 def test_extract_json_invalid_raises():
     with pytest.raises(ValueError):
         extract_json("sin json")

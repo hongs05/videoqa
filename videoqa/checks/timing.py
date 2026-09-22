@@ -55,7 +55,9 @@ def check_occluded(appearances: list[dict], rules: dict, vertical: bool = True) 
         return []
     th = rules["thresholds"]
     sev = rules["severities"]["text_occluded"]
-    out = []
+    # Un subtítulo mal colocado lo está en TODO el video: un aviso por línea llenaba el
+    # reporte con decenas de copias del mismo problema. Se agrupa por zona.
+    groups: dict[tuple[str, ...], tuple[Finding, list[dict]]] = {}
     for i, a in enumerate(appearances):
         x, y, w, h = a["bbox"]
         reasons = []
@@ -63,10 +65,22 @@ def check_occluded(appearances: list[dict], rules: dict, vertical: bool = True) 
             reasons.append("banda inferior (caption/botones)")
         if x + w > float(th["occluded_right"]):
             reasons.append("franja derecha (iconos de like/comentar)")
-        if reasons:
-            out.append(_base(f"occl-{i}", a, "tecnico", sev, "Texto en zona tapada por la UI de TikTok/Reels",
+        if not reasons:
+            continue
+        key = tuple(reasons)
+        if key in groups:
+            groups[key][1].append(a)
+            continue
+        groups[key] = (_base(f"occl-{i}", a, "tecnico", sev, "Texto en zona tapada por la UI de TikTok/Reels",
                              f'"{a["text"]}" cae en: {"; ".join(reasons)}.',
-                             "Mover el texto hacia el centro/zona segura.", "text_occluded"))
+                             "Mover el texto hacia el centro/zona segura.", "text_occluded"), [])
+    out = []
+    for f, rest in groups.values():
+        if rest:
+            shown = "; ".join(f'"{b["text"]}" ({b["t_start"]:.1f} s)' for b in rest[:5])
+            more = f" y {len(rest) - 5} más" if len(rest) > 5 else ""
+            f.detail += f" Lo mismo pasa con {len(rest)} texto(s) más: {shown}{more}."
+        out.append(f)
     return out
 
 
@@ -87,5 +101,10 @@ def check_desync(appearances: list[dict], segments: list[dict], rules: dict) -> 
 
 
 def check_timing(appearances: list[dict], segments: list[dict], rules: dict, vertical: bool = True) -> list[Finding]:
+    # Mismo filtro que ortografía y color: el OCR de baja confianza (texturas, bordados,
+    # letras sueltas del fondo) suele durar un solo frame y cae en cualquier parte, así
+    # que disparaba "texto visible 0.5 s" y "zona tapada" sobre texto que no existe.
+    min_conf = float(rules["thresholds"].get("ocr_min_conf", 0.0))
+    appearances = [a for a in appearances if float(a.get("conf", 1.0)) >= min_conf]
     return (check_visible_short(appearances, rules) + check_occluded(appearances, rules, vertical)
             + check_desync(appearances, segments, rules))

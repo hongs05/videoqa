@@ -64,11 +64,26 @@ def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int 
 
 
 def extract_json(text: str) -> dict:
+    """Primer objeto JSON de la respuesta del modelo.
+
+    Antes se tomaba del primer ``{`` al último ``}``: bastaba una llave en el texto
+    que acompaña al JSON (o un segundo bloque) para que todo el veredicto fuera
+    "JSON inválido" y el video terminara en error. Ahora se prueba primero el bloque
+    ```json``` y luego cada ``{`` hasta dar con un objeto que decodifique.
+    """
+    decoder = json.JSONDecoder()
     m = _FENCE.search(text)
-    candidate = m.group(1) if m else text[text.find("{"): text.rfind("}") + 1]
-    if not candidate:
+    starts = [m.start(1)] if m else []
+    starts += [i for i, ch in enumerate(text) if ch == "{" and i not in starts]
+    if not starts:
         raise ValueError("no se encontró JSON en la respuesta")
-    try:
-        return json.loads(candidate)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON inválido: {e}") from e
+    first_error: json.JSONDecodeError | None = None
+    for i in starts:
+        try:
+            data, _ = decoder.raw_decode(text, i)
+        except json.JSONDecodeError as e:
+            first_error = first_error or e
+            continue
+        if isinstance(data, dict):
+            return data
+    raise ValueError(f"JSON inválido: {first_error}" if first_error else "la respuesta no contiene un objeto JSON")

@@ -124,28 +124,98 @@ def build_prompt(skill_text: str, manifest: dict, duration: float) -> str:
             "Responde solo con el JSON del veredicto.")
 
 
+_ACCENTS = str.maketrans("áéíóúü", "aeiouu")
+
+# Variantes que el modelo devuelve a veces en vez del valor exacto del esquema.
+_TYPE_ALIASES = {
+    "ortografico": "ortografia", "ortografia_y_tildes": "ortografia", "tildes": "ortografia",
+    "puntuacion": "ortografia", "brand": "marca", "color": "marca", "logo": "marca",
+    "inconsistencias": "inconsistencia", "guion": "inconsistencia", "bloopers": "blooper",
+    "tecnica": "tecnico", "technical": "tecnico", "tono": "tecnico", "claridad": "tecnico",
+}
+_SEVERITY_ALIASES = {
+    "bloqueante": "blocker", "bloquea": "blocker", "critical": "blocker", "critico": "blocker",
+    "grave": "blocker", "high": "blocker", "error": "blocker", "major": "blocker",
+    "advertencia": "warning", "aviso": "warning", "medium": "warning", "media": "warning",
+    "minor": "warning", "low": "warning", "baja": "warning", "leve": "warning",
+    "informativo": "info", "nota": "info", "information": "info", "note": "info",
+}
+
+
+def _norm_key(value) -> str:
+    return str(value or "").strip().lower().translate(_ACCENTS).replace(" ", "_").replace("-", "_")
+
+
+def _as_float(value) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip().rstrip("s").replace(",", "."))
+        except ValueError:
+            return None
+    return None
+
+
+def _normalize_finding(f) -> dict | None:
+    """Ajusta un hallazgo del juez al esquema, o None si no se puede salvar.
+
+    Antes un solo hallazgo con `"severity": "critical"` o `"type": "Ortografía"`
+    invalidaba el veredicto entero; tras dos intentos el video acababa en error aunque
+    el resto de la revisión fuera correcta. Ahora se normalizan las variantes y solo se
+    descarta el hallazgo que no tiene texto con el que explicarse.
+    """
+    if not isinstance(f, dict):
+        log.warning("verdict finding: no es un objeto, descartado: %r", f)
+        return None
+    title = f.get("title") if isinstance(f.get("title"), str) else ""
+    detail = f.get("detail") if isinstance(f.get("detail"), str) else ""
+    title, detail = title.strip(), detail.strip()
+    if not title and not detail:
+        log.warning("verdict finding: sin title ni detail, descartado: %r", f)
+        return None
+    f["title"] = title or (detail[:80] + ("…" if len(detail) > 80 else ""))
+    f["detail"] = detail or title
+
+    typ = _norm_key(f.get("type"))
+    typ = typ if typ in TYPES else _TYPE_ALIASES.get(typ)
+    if typ is None:
+        log.warning("verdict finding: type desconocido %r, se usa 'tecnico'", f.get("type"))
+        typ = "tecnico"
+    f["type"] = typ
+
+    sev = _norm_key(f.get("severity"))
+    sev = sev if sev in SEVERITIES else _SEVERITY_ALIASES.get(sev)
+    if sev is None:
+        log.warning("verdict finding: severity desconocida %r, se usa 'warning'", f.get("severity"))
+        sev = "warning"
+    f["severity"] = sev
+
+    t_start = _as_float(f.get("t_start"))
+    t_end = _as_float(f.get("t_end"))
+    t_start = t_start if t_start is not None else (t_end if t_end is not None else 0.0)
+    t_end = t_end if t_end is not None else t_start
+    f["t_start"], f["t_end"] = t_start, max(t_start, t_end)
+
+    if "suggestion" in f and not isinstance(f["suggestion"], str):
+        f["suggestion"] = "" if f["suggestion"] is None else str(f["suggestion"])
+    # Sanitize frame: if present and not None and not a string, set to None with warning
+    if "frame" in f and f["frame"] is not None and not isinstance(f["frame"], str):
+        log.warning("verdict finding: frame no es string, descartado: %r", f["frame"])
+        f["frame"] = None
+    return f
+
+
 def parse_verdict(text: str, require_guion: bool = True) -> dict:
     data = extract_json(text)
     findings = data.get("findings")
+    if findings is None:
+        findings = []
     if not isinstance(findings, list):
         raise ValueError("'findings' debe ser una lista")
-    for f in findings:
-        if not isinstance(f, dict):
-            raise ValueError("cada finding debe ser objeto")
-        if f.get("type") not in TYPES:
-            raise ValueError(f"type inválido: {f.get('type')}")
-        if f.get("severity") not in SEVERITIES:
-            raise ValueError(f"severity inválida: {f.get('severity')}")
-        for k in ("t_start", "t_end"):
-            if not isinstance(f.get(k), (int, float)):
-                raise ValueError(f"{k} debe ser numérico")
-        for k in ("title", "detail"):
-            if not isinstance(f.get(k), str) or not f[k]:
-                raise ValueError(f"{k} requerido")
-        # Sanitize frame: if present and not None and not a string, set to None with warning
-        if "frame" in f and f["frame"] is not None and not isinstance(f["frame"], str):
-            log.warning("verdict finding: frame no es string, descartado: %r", f["frame"])
-            f["frame"] = None
+    data["findings"] = [n for n in (_normalize_finding(f) for f in findings) if n is not None]
     # El guion real es un entregable del pipeline, no un campo opcional: si viene vacío el
     # veredicto no sirve y debe reintentarse (o degradarse a "juez no disponible"). La
     # excepción es un video SIN diálogo: ahí no hay guion que transcribir y exigirlo
@@ -158,9 +228,14 @@ def parse_verdict(text: str, require_guion: bool = True) -> dict:
     if require_guion and not guion.strip():
         raise ValueError("guion_real_md vacío")
 
+    # `confirmed_code_findings` es solo informativo (lo que no se descarta se queda):
+    # un formato raro aquí no justifica tirar el veredicto entero.
     confirmed = data.get("confirmed_code_findings", []) or []
+    if isinstance(confirmed, str):
+        confirmed = [confirmed]
     if not isinstance(confirmed, list):
-        raise ValueError("'confirmed_code_findings' debe ser una lista")
+        log.warning("confirmed_code_findings con formato inesperado, se ignora: %r", confirmed)
+        confirmed = []
     data["confirmed_code_findings"] = [str(x) for x in confirmed]
 
     dismissed_raw = data.get("dismissed_code_findings", []) or []
