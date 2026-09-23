@@ -11,6 +11,7 @@ from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, extract_
 from videoqa.config import SKILL_PATH
 from videoqa.findings import SEVERITIES, SEVERITY_ORDER, TYPES, Finding
 from videoqa.job import Job
+from videoqa.judge_data import render
 from videoqa.learning import for_judge, relevant
 
 log = logging.getLogger("videoqa")
@@ -98,10 +99,11 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
         "technical.json": technical,
         "findings_code.json": [f.to_dict() for f in code_findings],
     }
+    chosen_corrections: list[dict] = []
     if corrections:
         # Solo las más parecidas a este video: todas juntas gastarían uso de Claude de más.
-        files["aprendizaje.json"] = for_judge(relevant(corrections, code_findings, ocr.get("appearances", []),
-                                                        transcript))
+        chosen_corrections = for_judge(relevant(corrections, code_findings, ocr.get("appearances", []), transcript))
+        files["aprendizaje.json"] = chosen_corrections
     for name, data in files.items():
         (inp / name).write_text(json.dumps(data, ensure_ascii=False, indent=2))
     (inp / "glosario.txt").write_text(glossary_text)
@@ -113,6 +115,7 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
     by_file = {f["file"]: f["t"] for f in frames}
     selected = select_frames(frames, ocr.get("appearances", []), code_findings, int(rules["claude"]["max_frames"]))
     manifest_frames = []
+    photo_of: dict[str, str] = {}
     for i, rel in enumerate(selected):
         t = by_file[rel]
         img = Image.open(job.path(rel)).convert("RGB")
@@ -121,15 +124,27 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
         name = f"claude_frames/{i:02d}_{t:06.1f}s.jpg"
         img.save(job.path(name), quality=85)
         manifest_frames.append({"file": name, "t": t})
-    return {"frames": manifest_frames, "inputs": [f"judge_input/{n}" for n in [*files, "glosario.txt"]]}
+        photo_of[rel] = name
+    # Los JSON de judge_input/ se quedan como registro para depurar; al juez le llega esto,
+    # en texto compacto dentro del propio prompt.
+    data = render(brand, glossary_text, transcript, ocr.get("appearances", []), technical, code_findings, rules,
+                  photo_of, chosen_corrections)
+    return {"frames": manifest_frames, "inputs": [f"judge_input/{n}" for n in [*files, "glosario.txt"]],
+            "data": data}
 
 
 def build_prompt(skill_text: str, manifest: dict, duration: float) -> str:
     frame_lines = "\n".join(f"- {f['file']}  (t = {f['t']:.1f} s)" for f in manifest["frames"])
-    input_lines = "\n".join(f"- {p}" for p in manifest["inputs"])
+    if "data" not in manifest:  # manifiesto de versiones anteriores: datos en archivos
+        input_lines = "\n".join(f"- {p}" for p in manifest["inputs"])
+        return (f"{skill_text}\n\n---\n\n# Trabajo actual\n\nDuración del video: {duration:.1f} s.\n\n"
+                f"Archivos de entrada (léelos todos con Read):\n{input_lines}\n\n"
+                f"Frames clave (léelos todos con Read):\n{frame_lines}\n\n"
+                "Responde solo con el JSON del veredicto.")
     return (f"{skill_text}\n\n---\n\n# Trabajo actual\n\nDuración del video: {duration:.1f} s.\n\n"
-            f"Archivos de entrada (léelos todos con Read):\n{input_lines}\n\n"
-            f"Frames clave (léelos todos con Read):\n{frame_lines}\n\n"
+            f"Frames clave — ábrelos TODOS con Read en una sola tanda (todas las llamadas a la vez, "
+            f"en tu primera respuesta):\n{frame_lines}\n\n"
+            f"{manifest['data']}\n\n---\n\n"
             "Responde solo con el JSON del veredicto.")
 
 
