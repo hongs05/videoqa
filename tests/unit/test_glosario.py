@@ -44,6 +44,22 @@ def test_candidatas_sin_carpeta_de_trabajos(tmp_path):
     assert candidatas(tmp_path / "no_existe", set()) == []
 
 
+def test_candidatas_solo_de_unknown_word_no_de_puntuacion_ni_pegadas(tmp_path):
+    """spelling_punctuation y spelling_glued_words también empiezan por "spelling", pero
+    su título no es una lista de palabras aceptables para el glosario: el de puntuación
+    es una frase ("falta el signo de apertura ¿") y el de pegadas es una lectura de OCR
+    con los espacios perdidos, no una palabra que valga la pena aceptar."""
+    jobs = tmp_path / "jobs"
+    d = jobs / "a"
+    d.mkdir(parents=True)
+    (d / "findings_code.json").write_text(json.dumps([
+        {"check": "spelling_unknown_word", "title": "Posible error ortográfico: canva"},
+        {"check": "spelling_punctuation", "title": "Puntuación: falta el signo de apertura ¿"},
+        {"check": "spelling_glued_words", "title": "Palabras juntas: yasiescomo"},
+    ], ensure_ascii=False))
+    assert [w for w, _, _ in candidatas(jobs, set())] == ["canva"]
+
+
 def test_candidatas_salta_un_json_roto(tmp_path):
     jobs = tmp_path / "jobs"
     _job(jobs, "a", ["Posible error ortográfico: canva"])

@@ -9,7 +9,7 @@ from pathlib import Path
 from videoqa import backends
 from videoqa.brand import load_brand
 from videoqa.checks.brand_color import check_brand_colors
-from videoqa.checks.spelling import check_spelling, load_glossary
+from videoqa.checks.spelling import BASE_GLOSSARY_PATH, check_spelling, load_glossary
 from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
 from videoqa.claude_runner import Runner, UsageLimitError
@@ -54,6 +54,22 @@ def _rel(settings: Settings, path: Path | None) -> str:
         return str(path)
 
 
+def _glossary_text_for_judge(glossary_path: Path) -> str:
+    """El texto de glosario.txt que se le enseña al juez.
+
+    El check de código acepta "reel", "canva" o "chévere" porque `load_glossary()` suma el
+    glosario base empaquetado al del equipo; si el juez solo viera el archivo del equipo,
+    podría marcar como error una palabra que el código ya dio por buena y las dos mitades
+    de la revisión se contradirían. Se le da el mismo vocabulario: el archivo del equipo
+    (tal cual, con sus propios comentarios) seguido del glosario base.
+    """
+    equipo = glossary_path.read_text(encoding="utf-8") if glossary_path.exists() else ""
+    partes = [equipo.rstrip("\n")] if equipo.strip() else []
+    partes.append("# --- Glosario base de VideoQA (viene empaquetado en el programa) ---")
+    partes.append(BASE_GLOSSARY_PATH.read_text(encoding="utf-8").rstrip("\n"))
+    return "\n".join(partes) + "\n"
+
+
 def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None,
                   modo: str = "completo", veredicto_text: str | None = None) -> Result:
     sheet = sheet or SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
@@ -92,7 +108,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         ocr = job.run_stage("color", "ocr_color.json", lambda j: add_colors(j, ocr))
 
         glossary_path = settings.config_dir / "glosario.txt"
-        glossary_text = glossary_path.read_text(encoding="utf-8") if glossary_path.exists() else ""
+        glossary_text = _glossary_text_for_judge(glossary_path)
         glossary = load_glossary(glossary_path)
         apps = ocr["appearances"]
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el

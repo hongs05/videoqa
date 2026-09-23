@@ -21,7 +21,12 @@ CABECERA = ("# Palabras válidas del equipo (nombres de marca, productos, jerga)
 
 
 def _palabras(finding: dict) -> list[str]:
-    if not str(finding.get("check", "")).startswith("spelling"):
+    # Solo "spelling_unknown_word": el título es "Posible error ortográfico: a, b".
+    # "spelling_punctuation" también empieza por "spelling" pero su título es una frase
+    # ("Puntuación: falta el signo de apertura ¿"), no una lista de palabras -- ofrecerla
+    # como candidata metía basura en el glosario del equipo. "spelling_glued_words" son
+    # lecturas del OCR con los espacios perdidos, no palabras que valga la pena aceptar.
+    if str(finding.get("check", "")) != "spelling_unknown_word":
         return []
     titulo = str(finding.get("title", ""))
     if ":" not in titulo:
