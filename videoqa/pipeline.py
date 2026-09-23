@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from videoqa import backends
 from videoqa.brand import load_brand
 from videoqa.checks.brand_color import check_brand_colors
 from videoqa.checks.spelling import check_spelling, load_glossary
@@ -97,7 +98,11 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
         # feed vertical; en 16:9 el check no aplica.
         vertical = int(p["height"]) > int(p["width"])
-        code_findings = (check_spelling(apps, glossary, rules, segments=transcript["segments"])
+        try:
+            checker = backends.get_speller()(settings.idiomas)
+        except TypeError:  # backend de terceros sin soporte de idiomas
+            checker = backends.get_speller()()
+        code_findings = (check_spelling(apps, glossary, rules, checker=checker, segments=transcript["segments"])
                          + check_brand_colors(apps, brand, rules)
                          + check_timing(apps, transcript["segments"], rules, vertical=vertical)
                          + check_technical(p, technical, rules))

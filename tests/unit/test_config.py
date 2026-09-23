@@ -105,3 +105,15 @@ def test_load_token_vacio_cuenta_como_ausente():
     token_path().parent.mkdir(parents=True, exist_ok=True)
     token_path().write_text("\n")
     assert load_token() is None
+
+
+def test_idiomas_por_defecto(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("drive_root: /tmp/d\n")
+    assert load_settings(p).idiomas == ("es", "en")
+
+
+def test_idiomas_configurables(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("drive_root: /tmp/d\nidiomas: [es]\n")
+    assert load_settings(p).idiomas == ("es",)

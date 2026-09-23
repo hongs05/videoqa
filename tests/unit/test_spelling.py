@@ -74,3 +74,55 @@ def test_appearance_without_conf_is_spellchecked():
 def test_unknown_words_recognizes_common_spanish_words():
     assert unknown_words("Quieres ahorrar esta semana", CHECKER, set()) == []
     assert CHECKER.correction("Aprobecha") == "Aprovecha"
+
+
+class _FakeNS:
+    """Imita NSSpellChecker: cada idioma conoce su propio conjunto de palabras."""
+
+    def __init__(self, por_idioma):
+        self.por_idioma = por_idioma
+        self.vistas = []
+
+    def setLanguage_(self, lang):
+        pass
+
+    def checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount_(
+            self, word, start, language, wrap, tag, count):
+        self.vistas.append((word, language))
+        conocida = word.lower() in self.por_idioma.get(language, set())
+
+        class _R:
+            location = 0x7FFFFFFFFFFFFFFF if conocida else 0
+        return _R()
+
+
+def _checker(por_idioma, languages=("es", "en")):
+    c = MacSpellChecker.__new__(MacSpellChecker)
+    c._sc = _FakeNS(por_idioma)
+    c._lang = languages[0]
+    c._langs = tuple(languages)
+    c._range = lambda a, b: (a, b)
+    return c
+
+
+def test_palabra_inglesa_se_acepta_si_el_idioma_ingles_esta_activo():
+    c = _checker({"es": {"hola"}, "en": {"earnings"}})
+    assert c.is_known("earnings")
+    assert c.unknown(["earnings"]) == set()
+
+
+def test_palabra_desconocida_en_todos_los_idiomas_se_marca():
+    c = _checker({"es": {"hola"}, "en": {"earnings"}})
+    assert not c.is_known("aprobecha")
+    assert c.unknown(["aprobecha"]) == {"aprobecha"}
+
+
+def test_solo_espanol_vuelve_a_marcar_el_ingles():
+    c = _checker({"es": {"hola"}, "en": {"earnings"}}, languages=("es",))
+    assert c.unknown(["earnings"]) == {"earnings"}
+
+
+def test_no_consulta_el_segundo_idioma_si_el_primero_ya_la_conoce():
+    c = _checker({"es": {"hola"}, "en": {"hola"}})
+    c.is_known("hola")
+    assert [l for _, l in c._sc.vistas] == ["es"]

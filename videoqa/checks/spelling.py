@@ -25,25 +25,34 @@ _NON_WORDS_RE = re.compile(
 
 
 class MacSpellChecker:
-    """Corrector ortográfico nativo de macOS (NSSpellChecker) en español."""
+    """Corrector ortográfico nativo de macOS (NSSpellChecker).
 
-    def __init__(self, language: str = "es"):
+    Consulta varios idiomas: una palabra solo es un error si NINGUNO la reconoce.
+    Los rótulos de redes mezclan idiomas ("earnings", "wanna", "link") y con un solo
+    diccionario español esas palabras salían como faltas.
+    """
+
+    def __init__(self, languages: tuple[str, ...] = ("es",)):
         from AppKit import NSSpellChecker  # pyobjc, ya instalado vía ocrmac
         from Foundation import NSMakeRange
 
         self._range = NSMakeRange
         self._sc = NSSpellChecker.sharedSpellChecker()
-        self._sc.setLanguage_(language)
-        self._lang = language
+        self._langs = tuple(languages) or ("es",)
+        self._lang = self._langs[0]
+        self._sc.setLanguage_(self._lang)
 
-    def is_known(self, word: str) -> bool:
+    def _known_in(self, word: str, language: str) -> bool:
         # API con idioma explícito: `checkSpellingOfString:startingAt:` usa el idioma del
         # panel compartido (que otra app puede haber cambiado) y en la práctica devolvía
         # "conocido" para casi todo. Con esta variante el idioma va en la llamada.
         res = self._sc.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount_(
-            word, 0, self._lang, False, 0, None)
+            word, 0, language, False, 0, None)
         r = res[0] if isinstance(res, tuple) else res
         return getattr(r, "location", r) == NSNOTFOUND  # NSNotFound = sin error = palabra conocida
+
+    def is_known(self, word: str) -> bool:
+        return any(self._known_in(word, lang) for lang in self._langs)
 
     def unknown(self, words) -> set[str]:
         return {w for w in words if not self.is_known(w)}

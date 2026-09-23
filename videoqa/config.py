@@ -58,6 +58,9 @@ class Settings:
     service_account_json: Path | None = None
     claude_bin: str = "claude"
     whisper_model: str = "mlx-community/whisper-large-v3-turbo"
+    # Idiomas del corrector ortográfico: una palabra solo es falta si falla en todos.
+    # Los rótulos de redes mezclan español e inglés; con solo "es" salían como errores.
+    idiomas: tuple[str, ...] = ("es", "en")
 
     @property
     def entrada(self) -> Path:
@@ -92,6 +95,8 @@ def load_settings(path: Path | None = None) -> Settings:
         kwargs["claude_bin"] = str(data["claude_bin"])
     if data.get("whisper_model"):
         kwargs["whisper_model"] = str(data["whisper_model"])
+    if data.get("idiomas"):
+        kwargs["idiomas"] = tuple(str(x) for x in data["idiomas"])
     return Settings(**kwargs)
 
 
@@ -121,6 +126,7 @@ def load_all_settings(path: Path | None = None) -> list[Settings]:
             service_account_json=None,
             claude_bin=principal.claude_bin,
             whisper_model=principal.whisper_model,
+            idiomas=principal.idiomas,
         ))
     return todas
 
