@@ -116,7 +116,8 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         vertical = int(p["height"]) > int(p["width"])
         try:
             checker = backends.get_speller()(settings.idiomas)
-        except TypeError:  # backend de terceros sin soporte de idiomas
+        except TypeError as e:  # backend de terceros sin soporte de idiomas
+            log.debug("get_speller() no acepta idiomas, uso el constructor sin argumentos: %s", e)
             checker = backends.get_speller()()
         code_findings = (check_spelling(apps, glossary, rules, checker=checker, segments=transcript["segments"])
                          + check_brand_colors(apps, brand, rules)

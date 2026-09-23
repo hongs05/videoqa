@@ -36,51 +36,6 @@ Para varias palabras a la vez, añádelas todas y confírmalo en una línea.
 
 Si te piden ver el glosario, léelo y muéstralo como una lista simple.
 
-## Caso D — "Llena el glosario" / "revisa qué palabras marca mal"
-
-Sirve para sembrar el glosario de golpe con lo que ya se revisó, en vez de ir palabra por
-palabra. Úsalo también la primera vez que se configura el equipo.
-
-```bash
-uv run --project ~/videoqa videoqa glosario
-```
-
-La primera línea dice cuántas candidatas hay; luego una por línea con las veces que se marcó
-y en cuántos videos. **No le enseñes la tabla en crudo.** Preséntalas agrupadas y en
-castellano, empezando por las más repetidas:
-
-> Encontré 18 palabras que se marcaron como error y probablemente no lo son:
->
-> - **Nombres de marca o herramientas:** Canva, Klook, Educanab
-> - **Palabras en inglés:** earnings, calendar, featured
-> - **Jerga:** corillo, chamba
->
-> ¿Las añado todas a la lista de palabras válidas? Si alguna SÍ es una falta, dime cuál y la dejo fuera.
-
-Con el sí (y quitando las que te diga):
-
-```bash
-uv run --project ~/videoqa videoqa glosario --agregar "canva,klook,educanab,earnings"
-```
-
-Confirma en una línea cuántas quedaron añadidas. Si la respuesta es `AGREGADAS: ninguna`, dile
-que ya estaban todas.
-
-Si no hay candidatas (`CANDIDATAS 0`), díselo así: "No hay palabras pendientes: el corrector no
-está marcando nada raro."
-
-## Caso E — "Marca mal las palabras en inglés" / "solo revisa español"
-
-El corrector consulta español e inglés: una palabra solo es falta si no existe en ninguno de
-los dos. Se cambia con la clave `idiomas` de `~/.videoqa/config.yaml`.
-
-- Si los videos son solo en español y quieren que el inglés SÍ se marque: deja `idiomas: [es]`.
-- Si vuelve a marcar inglés correcto: comprueba que la línea diga `idiomas: [es, en]`.
-
-Explícalo así: "Ahora mismo acepto palabras en español y en inglés. Si quieres que marque el
-inglés como error, lo dejo solo en español. ¿Lo cambio?" Con el sí, edita esa línea con Edit
-(créala si no está) y recuerda que solo afecta a los videos que se revisen a partir de ahora.
-
 ## Caso B — "Que X sea bloqueante / que X sea solo un aviso"
 
 Es `~/videoqa/reglas.yaml`, sección `severities`. Traduce del castellano al nombre técnico:
@@ -138,6 +93,68 @@ vista:
 > - Video sin audio
 >
 > ¿Quieres cambiar alguna?
+
+## Caso D — "Llena el glosario" / "revisa qué palabras marca mal"
+
+Sirve para sembrar el glosario de golpe con lo que ya se revisó, en vez de ir palabra por
+palabra. Úsalo también la primera vez que se configura el equipo.
+
+```bash
+uv run --project ~/videoqa videoqa glosario
+```
+
+La primera línea dice cuántas candidatas hay; luego una por línea con las veces que se marcó
+y en cuántos videos. **No le enseñes la tabla en crudo.** Sepáralas en dos grupos, en
+castellano, empezando por las más repetidas:
+
+> Encontré 9 palabras que se marcaron como error. Creo que 6 son válidas:
+>
+> - **Nombres de marca o herramientas:** Canva, Klook, Educanab
+> - **Jerga:** corillo, chamba, bacano
+>
+> **Parecen lecturas raras del video, no las añado:** sarte, jel, detoils
+>
+> ¿Añado las 6 primeras a la lista de palabras válidas? Si alguna SÍ es una falta real, dime
+> cuál y la dejo fuera también.
+
+Para distinguir un grupo del otro: una palabra real es una que reconocerías si la vieras
+escrita (una marca, un producto, una jerga de la calle); lo demás son casi siempre trozos que
+el lector de texto del video leyó mal (una letra de más o de menos, una palabra cortada a
+mitad). **Nunca metas en `--agregar` las que parecen lecturas raras**: una palabra basura en el
+glosario del equipo apaga la detección de esa falta para siempre, en todos los videos futuros.
+
+Con el sí (y quitando las que te diga):
+
+```bash
+uv run --project ~/videoqa videoqa glosario --agregar "canva,klook,educanab,corillo,chamba,bacano"
+```
+
+Confirma en una línea cuántas quedaron añadidas. Si la respuesta es `AGREGADAS: ninguna`, dile
+que ya estaban todas. Si además ves una línea `YA_DE_FABRICA: ...`, es que alguna de esas
+palabras ya venía incluida en el programa desde siempre; dile a la persona que esas ya
+estaban aceptadas y no hizo falta tocar nada por ellas.
+
+Si no hay candidatas (`CANDIDATAS 0`), díselo así: "No hay palabras pendientes: el corrector no
+está marcando nada raro."
+
+## Caso E — "Marca mal las palabras en inglés" / "solo revisa español"
+
+El corrector consulta español e inglés: una palabra solo es falta si no existe en ninguno de
+los dos. Se cambia con la clave `idiomas` de `~/.videoqa/config.yaml`.
+
+- Si los videos son solo en español y quieren que el inglés SÍ se marque: deja `idiomas: [es]`.
+- Si vuelve a marcar inglés correcto: comprueba que la línea diga `idiomas: [es, en]`.
+
+Ojo: aunque se deje `idiomas: [es]`, las palabras de redes que el programa ya trae de fábrica
+(link, online, marketing, delivery, outfit, tips, sale, pack, gift, skincare, fitness, workout,
+mood, vibes y otras por el estilo) se siguen aceptando igual — esas vienen del glosario de
+fábrica, no del idioma inglés, así que este cambio no las toca.
+
+Explícalo así: "Ahora mismo acepto palabras en español y en inglés. Si quieres que marque el
+inglés como error, lo dejo solo en español — aunque las palabras de redes que ya trae de
+fábrica el programa van a seguir aceptándose igual. ¿Lo cambio?" Con el sí, edita esa línea con
+Edit (créala si no está) y recuerda que solo afecta a los videos que se revisen a partir de
+ahora.
 
 ## Cómo explicar el resultado
 

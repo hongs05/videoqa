@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 
 from videoqa.checks.scene_text import is_scene_text
@@ -19,6 +20,14 @@ _PLURALES = ("es", "s")
 _MIN_RAIZ = 3
 
 NSNOTFOUND = 0x7FFFFFFFFFFFFFFF
+
+
+def _sin_tildes(w: str) -> str:
+    """Quita los acentos para comparar "menu" con "menú": se descompone en NFD (la letra
+    y su tilde por separado) y se descarta todo lo que `unicodedata.combining` marca como
+    una marca de combinación."""
+    return "".join(c for c in unicodedata.normalize("NFD", w.lower()) if not unicodedata.combining(c))
+
 
 # Minúscula tras punto seguido de espacio. El lookbehind de dígito evita marcar
 # decimales ("3.5 euros"); los de punto/lookahead evitan los puntos suspensivos
@@ -62,7 +71,31 @@ class MacSpellChecker:
         return getattr(r, "location", r) == NSNOTFOUND  # NSNotFound = sin error = palabra conocida
 
     def is_known(self, word: str) -> bool:
-        return any(self._known_in(word, lang) for lang in self._langs)
+        if self._known_in(word, self._langs[0]):
+            return True
+        for lang in self._langs[1:]:
+            if self._known_in(word, lang):
+                # El idioma principal no la conoce pero uno secundario sí: antes de
+                # aceptarla como anglicismo ("menu", "cafe"...) hay que descartar que sea
+                # una falta de tilde disfrazada de palabra extranjera. Si el corrector del
+                # idioma principal sugiere una versión con acento que es la MISMA palabra
+                # sin tildes, es una falta real ("menú"), no un préstamo válido.
+                if self._is_accent_mistake(word):
+                    return False
+                return True
+        return False
+
+    def _guesses(self, word: str, language: str) -> list[str]:
+        guesses = self._sc.guessesForWordRange_inString_language_inSpellDocumentWithTag_(
+            self._range(0, len(word)), word, language, 0)
+        return [str(g) for g in guesses] if guesses else []
+
+    def _is_accent_mistake(self, word: str) -> bool:
+        objetivo = _sin_tildes(word)
+        for sugerencia in self._guesses(word, self._langs[0]):
+            if sugerencia.lower() != word.lower() and _sin_tildes(sugerencia) == objetivo:
+                return True
+        return False
 
     def is_known_primary(self, word: str) -> bool:
         """Solo el idioma principal (`self._langs[0]`).
@@ -79,9 +112,8 @@ class MacSpellChecker:
         return {w for w in words if not self.is_known(w)}
 
     def correction(self, word: str) -> str | None:
-        guesses = self._sc.guessesForWordRange_inString_language_inSpellDocumentWithTag_(
-            self._range(0, len(word)), word, self._lang, 0)
-        return str(guesses[0]) if guesses else None
+        guesses = self._guesses(word, self._lang)
+        return guesses[0] if guesses else None
 
 
 def _read_words(path: Path) -> set[str]:

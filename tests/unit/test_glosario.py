@@ -87,6 +87,26 @@ def test_candidatas_conserva_lo_que_el_corrector_no_conoce(tmp_path):
     assert [w for w, _, _ in out] == ["aprobecha"]
 
 
+def test_candidatas_consulta_el_corrector_una_vez_por_palabra_distinta(tmp_path):
+    """"canva" aparece en dos hallazgos: el corrector solo debe consultarse una vez por
+    ella, no una vez por aparición."""
+    jobs = tmp_path / "jobs"
+    _job(jobs, "a", ["Posible error ortográfico: canva",
+                     "Posible error ortográfico: canva, aprobecha"])
+
+    class _Checker:
+        def __init__(self):
+            self.consultas = []
+
+        def unknown(self, words):
+            self.consultas.append(list(words))
+            return set(words)  # no conoce nada
+
+    checker = _Checker()
+    candidatas(jobs, set(), checker=checker)
+    assert checker.consultas.count(["canva"]) == 1
+
+
 def test_candidatas_sin_checker_se_comporta_como_antes(tmp_path):
     jobs = tmp_path / "jobs"
     _job(jobs, "a", ["Posible error ortográfico: earnings, aprobecha"])

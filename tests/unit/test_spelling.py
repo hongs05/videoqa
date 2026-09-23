@@ -81,11 +81,15 @@ def test_unknown_words_recognizes_common_spanish_words():
 
 
 class _FakeNS:
-    """Imita NSSpellChecker: cada idioma conoce su propio conjunto de palabras."""
+    """Imita NSSpellChecker: cada idioma conoce su propio conjunto de palabras, y puede
+    devolver sugerencias por idioma (para probar la falta de tilde disfrazada de
+    anglicismo)."""
 
-    def __init__(self, por_idioma):
+    def __init__(self, por_idioma, sugerencias=None):
         self.por_idioma = por_idioma
+        self.sugerencias = sugerencias or {}
         self.vistas = []
+        self.sugerencias_pedidas = []
 
     def setLanguage_(self, lang):
         pass
@@ -99,10 +103,14 @@ class _FakeNS:
             location = 0x7FFFFFFFFFFFFFFF if conocida else 0
         return _R()
 
+    def guessesForWordRange_inString_language_inSpellDocumentWithTag_(self, rng, word, language, tag):
+        self.sugerencias_pedidas.append((word, language))
+        return self.sugerencias.get(language, {}).get(word.lower(), [])
 
-def _checker(por_idioma, languages=("es", "en")):
+
+def _checker(por_idioma, languages=("es", "en"), sugerencias=None):
     c = MacSpellChecker.__new__(MacSpellChecker)
-    c._sc = _FakeNS(por_idioma)
+    c._sc = _FakeNS(por_idioma, sugerencias=sugerencias)
     c._lang = languages[0]
     c._langs = tuple(languages)
     c._range = lambda a, b: (a, b)
@@ -139,6 +147,24 @@ def test_is_known_primary_solo_consulta_el_primer_idioma():
     assert [l for _, l in c._sc.vistas] == ["es", "es"]
 
 
+def test_menu_sin_tilde_se_sigue_marcando_aunque_el_ingles_lo_conozca():
+    """"menu" no existe en el diccionario español, pero "en" sí lo conoce (palabra
+    inglesa real). El corrector español, sin embargo, sugiere "menú" para "menu": es una
+    falta de tilde disfrazada de anglicismo, y debe seguir marcándose como error. Para
+    "moment" el español no tiene ninguna sugerencia con tilde, así que se acepta como
+    palabra inglesa válida."""
+    c = _checker({"es": set(), "en": {"menu", "moment"}},
+                 sugerencias={"es": {"menu": ["menú"]}})
+    assert c.is_known("menu") is False
+    assert c.is_known("moment") is True
+
+
+def test_is_known_no_pide_sugerencias_si_el_idioma_principal_ya_conoce_la_palabra():
+    c = _checker({"es": {"hola"}, "en": {"hola"}})
+    c.is_known("hola")
+    assert c._sc.sugerencias_pedidas == []
+
+
 def test_glued_words_no_mezcla_idiomas_al_partir_una_palabra():
     """"prob" (inglés informal) + "echa" (español) explicaban el typo real "Aprobecha"
     como palabras pegadas y lo bajaban de bloqueante a info. El split solo debe usar el
@@ -167,8 +193,9 @@ def test_in_glossary_plural_en_es():
 
 
 def test_in_glossary_entrada_en_plural_acepta_singular():
+    # El glosario trae "stories" (plural); el singular "storie" debe aceptarse igual.
     g = {"stories"}
-    assert in_glossary("stories", g)
+    assert in_glossary("storie", g)
 
 
 def test_in_glossary_no_recorta_por_debajo_de_min_raiz():

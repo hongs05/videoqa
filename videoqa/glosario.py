@@ -44,6 +44,10 @@ def candidatas(jobs_dir: Path, glossary: set[str], checker=None) -> list[tuple[s
     """
     veces: Counter[str] = Counter()
     videos: defaultdict[str, set[str]] = defaultdict(set)
+    # La misma palabra aparece muchas veces (por eso se cuenta). Sin este caché,
+    # `checker.unknown([w])` se llamaba una vez POR APARICIÓN; con él, una vez por
+    # palabra distinta en todo `jobs_dir`, que es lo único que puede cambiar el resultado.
+    conocida_por_checker: dict[str, bool] = {}
     for f in sorted(Path(jobs_dir).glob("*/findings_code.json")):
         try:
             findings = json.loads(f.read_text(encoding="utf-8"))
@@ -58,8 +62,11 @@ def candidatas(jobs_dir: Path, glossary: set[str], checker=None) -> list[tuple[s
             for w in _palabras(fnd):
                 if in_glossary(w, glossary):
                     continue
-                if checker is not None and not checker.unknown([w]):
-                    continue
+                if checker is not None:
+                    if w not in conocida_por_checker:
+                        conocida_por_checker[w] = not checker.unknown([w])
+                    if conocida_por_checker[w]:
+                        continue
                 veces[w] += 1
                 videos[w].add(f.parent.name)
     return sorted(((w, n, len(videos[w])) for w, n in veces.items()),

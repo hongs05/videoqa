@@ -84,7 +84,10 @@ mood
 vibes
 
 # --- Jerga latinoamericana habitual ---
-chevere
+# Aquí solo la forma CON tilde cuando la palabra lleva acento en español ("chévere",
+# "padrísimo", "riquísimo"): el diccionario de macOS ya reconoce esa forma acentuada, así
+# que la variante sin tilde nunca debe añadirse aquí — apagaría la detección de una falta
+# real de acento (alguien que escriba "chevere" sin tilde).
 chévere
 bacano
 bacana
@@ -95,7 +98,6 @@ corillos
 chavo
 chava
 chido
-padrisimo
 padrísimo
 guay
 tuanis
@@ -110,5 +112,4 @@ lana
 antojo
 antojito
 rico
-riquisimo
 riquísimo
