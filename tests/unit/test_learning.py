@@ -68,7 +68,7 @@ def test_el_juez_recibe_las_correcciones(tmp_path):
                            frames_list(), R, corrections=corr)
     data = json.loads(job.path("judge_input/aprendizaje.json").read_text())
     assert data == [{"tipo": "falso_positivo", "motivo": "logo de la camiseta", "palabras": ["SUSHICD"]}]
-    assert "judge_input/aprendizaje.json" in prompt and "Criterio aprendido del equipo" in prompt
+    assert "## Criterio aprendido del equipo\n- [no era error] logo de la camiseta (palabras: SUSHICD)" in prompt
 
 
 def test_sin_correcciones_no_hay_archivo(tmp_path):
@@ -78,7 +78,7 @@ def test_sin_correcciones_no_hay_archivo(tmp_path):
     prompt = prepare_judge(job, {}, "", {"segments": []}, {"appearances": []}, {"scene_cuts": []}, [],
                            frames_list(), R)
     assert not job.path("judge_input/aprendizaje.json").exists()
-    assert "- judge_input/aprendizaje.json" not in prompt
+    assert "## Criterio aprendido del equipo" not in prompt
 
 
 # --- CLI -----------------------------------------------------------------------------------

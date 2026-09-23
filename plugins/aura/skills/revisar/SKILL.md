@@ -65,9 +65,9 @@ uv run --project ~/videoqa videoqa run "<drive_root>/02_Con_errores/<nombre>/<ar
 
    La última línea es `JUEZ_PENDIENTE <carpeta>`.
 
-2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: te pide leer los
-   archivos de `<carpeta>/judge_input/` y las fotos de `<carpeta>/claude_frames/` (las rutas del
-   prompt son relativas a `<carpeta>`) y responder solo con un JSON.
+2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: los datos del video
+   ya vienen dentro; solo te pide abrir las fotos de `<carpeta>/claude_frames/` (las rutas del
+   prompt son relativas a `<carpeta>`; ábrelas todas a la vez) y responder solo con un JSON.
 
 3. Escribe ese JSON, y nada más, con Write en `<carpeta>/veredicto.json`.
 

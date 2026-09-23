@@ -86,18 +86,41 @@ def claude_env() -> dict[str, str]:
     return env
 
 
-def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int = 600,
-               allowed_tools: tuple[str, ...] = ("Read",)) -> str:
-    cmd = [claude_bin, "-p", "--output-format", "json"]
-    if allowed_tools:
-        cmd += ["--allowedTools", ",".join(allowed_tools)]
+# Prompt de sistema corto para `claude -p`. Sin él, cada llamada arrastra el de Claude Code
+# completo (pensado para programar, con instrucciones de todas sus herramientas), y lo vuelve
+# a procesar en cada paso. Las instrucciones de verdad van en el mensaje.
+LEAN_SYSTEM_PROMPT = ("Sigue al pie de la letra las instrucciones del mensaje. Usa la herramienta Read "
+                      "solo para abrir los archivos que el mensaje indique. Responde exactamente en el "
+                      "formato que se pide, sin texto adicional.")
+
+# Las Macs pueden tener una versión de Claude Code sin `--tools`/`--system-prompt`. Si la
+# primera llamada los rechaza, se recuerda aquí y las siguientes van sin ellos.
+_lean_supported = True
+_UNKNOWN_OPTION = ("unknown option", "unknown argument", "unrecognized option")
+
+
+def _run(cmd: list[str], prompt: str, cwd: Path, timeout: int, claude_bin: str) -> subprocess.CompletedProcess:
     try:
-        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout,
-                               env=claude_env())
+        return subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=cwd, timeout=timeout,
+                              env=claude_env())
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"claude -p superó {timeout}s") from e
     except OSError as e:  # p.ej. FileNotFoundError si el binario `claude` no existe
         raise ClaudeError(f"no se pudo ejecutar {claude_bin}: {e}") from e
+
+
+def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int = 600,
+               allowed_tools: tuple[str, ...] = ("Read",), lean: bool = True) -> str:
+    global _lean_supported
+    base = [claude_bin, "-p", "--output-format", "json"]
+    if allowed_tools:
+        base += ["--allowedTools", ",".join(allowed_tools)]
+    use_lean = lean and _lean_supported
+    extra = ["--tools", ",".join(allowed_tools), "--system-prompt", LEAN_SYSTEM_PROMPT] if use_lean else []
+    proc = _run(base + extra, prompt, cwd, timeout, claude_bin)
+    if use_lean and proc.returncode != 0 and any(m in (proc.stderr or "").lower() for m in _UNKNOWN_OPTION):
+        _lean_supported = False
+        proc = _run(base, prompt, cwd, timeout, claude_bin)
     if proc.returncode != 0:
         detail = ""
         try:
