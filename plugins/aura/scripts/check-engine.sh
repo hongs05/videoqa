@@ -72,7 +72,11 @@ if [ -f "$ESPERA" ]; then
   HASTA_TS="$(grep -o '"hasta_ts": *[0-9]*' "$ESPERA" 2>/dev/null | grep -o '[0-9]*$')"
   HASTA="$(grep -o '"hasta": *"[^"]*"' "$ESPERA" 2>/dev/null | sed -e 's/.*T\([0-9][0-9]:[0-9][0-9]\).*/\1/')"
   if [ -n "$HASTA_TS" ] && [ "$HASTA_TS" -gt "$(date +%s)" ] 2>/dev/null; then
-    USO=" · ⏳ Claude sin uso disponible hasta las $HASTA: los videos esperan y se revisan solos"
+    if grep -q '"respaldo": *true' "$ESPERA" 2>/dev/null; then
+      USO=" · ⏳ Claude sin uso disponible hasta las $HASTA: revisando con el juez de respaldo"
+    else
+      USO=" · ⏳ Claude sin uso disponible hasta las $HASTA: los videos esperan y se revisan solos"
+    fi
   fi
 fi
 

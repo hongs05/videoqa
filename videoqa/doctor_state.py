@@ -26,7 +26,7 @@ def wait_state_path() -> Path:
     return videoqa_home() / "espera.json"
 
 
-def write_wait_state(until: datetime, video: str) -> Path:
+def write_wait_state(until: datetime, video: str, respaldo: bool = False) -> Path:
     """Apunta que Claude no tiene uso hasta `until` y qué videos esperan por eso.
 
     Lo leen el watcher (para no gastar intentos antes de esa hora, también tras reiniciarse)
@@ -41,8 +41,9 @@ def write_wait_state(until: datetime, video: str) -> Path:
     if video and video not in videos:
         videos.append(video)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # `respaldo`: el juez local está cubriendo la espera (los videos no se quedan parados).
     path.write_text(json.dumps({"hasta": until.isoformat(timespec="minutes"), "hasta_ts": int(until.timestamp()),
-                                "videos": videos}, ensure_ascii=False))
+                                "videos": videos, "respaldo": respaldo}, ensure_ascii=False))
     return path
 
 

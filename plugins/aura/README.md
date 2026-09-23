@@ -40,6 +40,7 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:corregir` | Le enseñas qué no era error (o qué se le pasó) y lo aplica en los próximos videos, en casos parecidos. |
 | `/aura:ajustar` | Añade palabras que no debe marcar como error y cambia qué problemas bloquean la publicación. |
 | `/aura:activar-automatico` | Enciende (o apaga) la revisión automática de todo lo que subas a `01_Entrada`. |
+| `/aura:respaldo` | Instala y enciende un juez gratuito en la Mac que revisa cuando Claude se queda sin uso. |
 | `/aura:actualizar` | Pone el motor y los comandos al día, y te cuenta qué cambió. |
 | `/aura:calendario` | Arma el calendario del mes en Excel (desde la estrategia o las cantidades que le digas) o revisa uno contra la estrategia. |
 | `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |

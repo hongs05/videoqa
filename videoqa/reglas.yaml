@@ -42,5 +42,14 @@ claude:
   frame_height: 720
   timeout_s: 600
 
+juez_respaldo:             # modelo local (Ollama) cuando Claude se queda sin uso; lo activa /aura:respaldo
+  activo: false
+  modelo: qwen3.5:4b        # cabe en una Mac de 8 GB
+  url: http://localhost:11434
+  max_frames: 6             # menos fotos y más pequeñas: no caben más en memoria
+  frame_height: 512
+  num_ctx: 16384
+  timeout_s: 900
+
 salida:
   reporte_html: false   # true para generar también reporte.html (Windows lo activa)

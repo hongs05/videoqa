@@ -101,6 +101,14 @@ ha revisado a medias**: sigue en `01_Entrada` y no tiene reporte. No sigas el Pa
 Con `watch --once`, en la salida aparece "Claude sin uso disponible hasta las HH:MM": igual, los
 que quedaban siguen esperando en `01_Entrada`.
 
+Si ves `EN_ESPERA` y el respaldo no está encendido, añade: "Si quieres que en estos casos los
+revise un modelo gratis en la Mac mientras vuelve Claude, dime «activa el respaldo»."
+
+**Si el reporte dice «Revisado con el juez de respaldo»:** explica el resultado como siempre, pero
+avisa en una frase: "Esta vez lo revisó el modelo de respaldo de la Mac porque Claude no tenía
+uso; es menos preciso, así que mira con cuidado los avisos que dicen «el juez de respaldo cree
+que no es error»."
+
 ## Paso 5 — Explicarlo
 
 Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:

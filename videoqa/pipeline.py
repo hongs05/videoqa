@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,12 +14,13 @@ from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
 from videoqa.claude_runner import Runner, UsageLimitError
 from videoqa.config import Settings
-from videoqa.doctor_state import clear_wait_state, write_doctor_state, write_wait_state
+from videoqa.doctor_state import clear_wait_state, load_wait_until, write_doctor_state, write_wait_state
 from videoqa.findings import Finding, save_findings
 from videoqa.gate import decide, deliver
 from videoqa.job import Job
 from videoqa.judge import JudgeError, prepare_judge, run_judge
 from videoqa.learning import load_corrections
+from videoqa.local_judge import apply_fallback, fallback_config, run_fallback_judge
 from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
 from videoqa.stages.color import add_colors
@@ -134,22 +136,48 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     # falló, el video igual recibe reporte y termina en 02_Con_errores/.
     findings: list[Finding] = list(code_findings)
     dest: Path | None = None
+    respaldo_note = ""
+    fallback = fallback_config(rules)
     try:
         try:
+            espera = load_wait_until() or 0.0
+            if fallback and espera > time.time():
+                # Claude sigue sin uso (lo dijo un video anterior): ni se intenta, directo al
+                # juez de respaldo, para no gastar una llamada que va a fallar.
+                raise UsageLimitError("Claude sin uso disponible (espera registrada)",
+                                      datetime.fromtimestamp(espera).astimezone())
             verdict = run_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
                                  frames["frames"], rules, runner, duration=float(p["duration"]),
                                  corrections=corrections)
         except UsageLimitError as e:
-            # Sin uso de Claude no hay veredicto que dar, pero el video no tiene la culpa:
-            # se queda en Entrada (nada de reporte con los hallazgos sin filtrar) y se
-            # reintenta cuando se libere el uso. Extracción y OCR ya quedan cacheados.
             retry_at = e.resets_at or (datetime.now().astimezone() + WAIT_FALLBACK)
-            write_wait_state(retry_at, video.name)
-            note = f"En espera: Claude sin uso disponible hasta las {retry_at:%H:%M}"
-            log.warning("[%s] %s; el video se queda en 01_Entrada", job.name, note)
-            sheet.write(row_for(video.name, "waiting", [], "", _rel(settings, video), float(p["duration"]),
-                                datetime.now(), note=note))
-            return Result("waiting", code_findings, None, str(e), retry_at=retry_at)
+            fallback_findings = None
+            if fallback:
+                try:
+                    res = run_fallback_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
+                                             frames["frames"], rules, fallback, duration=float(p["duration"]),
+                                             corrections=corrections)
+                    fallback_findings = apply_fallback(code_findings, res, fallback["modelo"])
+                except Exception as fe:  # noqa: BLE001 — sin respaldo, el video espera a Claude
+                    log.warning("[%s] el juez de respaldo tampoco pudo revisar: %s", job.name, fe)
+            if fallback_findings is None:
+                # Sin uso de Claude (ni respaldo) no hay veredicto que dar, pero el video no
+                # tiene la culpa: se queda en Entrada (nada de reporte con los hallazgos sin
+                # filtrar) y se reintenta cuando se libere el uso. Extracción y OCR ya quedan
+                # cacheados.
+                write_wait_state(retry_at, video.name)
+                note = f"En espera: Claude sin uso disponible hasta las {retry_at:%H:%M}"
+                log.warning("[%s] %s; el video se queda en 01_Entrada", job.name, note)
+                sheet.write(row_for(video.name, "waiting", [], "", _rel(settings, video), float(p["duration"]),
+                                    datetime.now(), note=note))
+                return Result("waiting", code_findings, None, str(e), retry_at=retry_at)
+            write_wait_state(retry_at, "", respaldo=True)
+            findings = fallback_findings
+            status = decide(findings)
+            judge_error = None
+            respaldo_note = (f"Juez de respaldo ({fallback['modelo']}): Claude sin uso hasta las "
+                             f"{retry_at:%H:%M}")
+            log.info("[%s] revisado con el juez de respaldo (%s)", job.name, fallback["modelo"])
         except Exception as e:  # noqa: BLE001 — cualquier fallo del juez (ClaudeError u otro) degrada igual
             log.error("[%s] %s", job.name, e)
             texto_error = str(e).lower()
@@ -191,7 +219,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         dest = deliver(job, settings, status)
         # Con el juez caído la columna "Reporte" muestra el motivo (la ruta del reporte
         # parcial queda en el propio reporte, dentro de la carpeta del video).
-        note = f"Claude no disponible: {judge_error}" if judge_error else ""
+        note = f"Claude no disponible: {judge_error}" if judge_error else respaldo_note
         sheet.write(row_for(video.name, status, findings, _rel(settings, dest / "reporte.md"), _rel(settings, dest / video.name),
                             float(p["duration"]), datetime.now(), note=note))
         log.info("[%s] %s → %s", job.name, status, dest)

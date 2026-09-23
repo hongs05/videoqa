@@ -100,3 +100,10 @@ def test_espera_pasada_no_se_menciona(tmp_path):
     (Path(env["VIDEOQA_HOME"]) / "espera.json").write_text(json.dumps(
         {"hasta": "2020-01-01T19:20-06:00", "hasta_ts": 1577926800, "videos": []}))
     assert "sin uso" not in _run(env)
+
+
+def test_espera_cubierta_por_el_respaldo(tmp_path):
+    env = _entorno(tmp_path, auth_exit=0)
+    (Path(env["VIDEOQA_HOME"]) / "espera.json").write_text(json.dumps(
+        {"hasta": "2099-09-22T19:20-06:00", "hasta_ts": int(time.time()) + 3600, "videos": [], "respaldo": True}))
+    assert "revisando con el juez de respaldo" in _run(env)
