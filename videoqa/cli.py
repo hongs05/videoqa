@@ -99,7 +99,8 @@ def cmd_run(args) -> int:
     settings, rules = load_settings(), load_rules()
     video = Path(args.video).expanduser().resolve()
     entrada = settings.entrada.resolve()
-    if video.parent != entrada and video.exists():
+    solo_respaldo = getattr(args, "solo_respaldo", False)
+    if video.parent != entrada and video.exists() and not solo_respaldo:
         # Un video de fuera (p. ej. el de prueba que viene con el motor) se copia:
         # deliver() MUEVE el archivo, y mover el fixture del repo lo deja sucio.
         entrada.mkdir(parents=True, exist_ok=True)
@@ -107,12 +108,19 @@ def cmd_run(args) -> int:
         shutil.copy2(video, destino)
         print(f"Copiado a 01_Entrada: {video.name}")
         video = destino
-    modo = "preparar" if getattr(args, "hasta_juez", False) else "completo"
+    modo = "preparar" if getattr(args, "hasta_juez", False) else "prueba_respaldo" if solo_respaldo else "completo"
     veredicto_text = Path(args.veredicto).expanduser().read_text(encoding="utf-8") if getattr(args, "veredicto", None) else None
     res = process_video(video, settings, rules, make_runner(settings, rules), sheet=make_sheet(settings),
                         modo=modo, veredicto_text=veredicto_text)
     if res.status == "pending":
         print(f"JUEZ_PENDIENTE {settings.jobs_dir / video.stem}")
+        return 0
+    if modo == "prueba_respaldo":
+        if res.dest is None:
+            print(f"RESPALDO_ERROR: {res.error}")
+            return 1
+        mins, secs = divmod(int(round(res.judge_seconds or 0)), 60)
+        print(f"PRUEBA_RESPALDO {res.status.upper()} en {mins} min {secs} s → {res.dest / 'reporte.md'}")
         return 0
     if res.status == "waiting":
         hora = f"{res.retry_at:%H:%M}" if res.retry_at else "dentro de una hora"
@@ -275,6 +283,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--hasta-juez", action="store_true",
                    help="preparar las entradas del juez y parar (la sesión de Claude hace de juez)")
     g.add_argument("--veredicto", metavar="JSON", help="reanudar con un veredicto ya escrito")
+    g.add_argument("--solo-respaldo", action="store_true",
+                   help="probar el juez de respaldo local: no mueve el video; reporte en 04_Pruebas_respaldo/")
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser("watch", help="vigilar 01_Entrada/")
     p.add_argument("--once", action="store_true")

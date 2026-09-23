@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,6 +21,7 @@ from videoqa.gate import decide, deliver
 from videoqa.job import Job
 from videoqa.judge import JudgeError, prepare_judge, run_judge
 from videoqa.learning import load_corrections
+from videoqa.local_judge import DEFAULTS as FALLBACK_DEFAULTS
 from videoqa.local_judge import apply_fallback, fallback_config, run_fallback_judge
 from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
@@ -44,6 +46,7 @@ class Result:
     dest: Path | None
     error: str | None = None
     retry_at: datetime | None = None  # solo en "waiting": cuándo vuelve a haber uso de Claude
+    judge_seconds: float | None = None  # solo en "prueba_respaldo": lo que tardó el modelo local
 
 
 def _rel(settings: Settings, path: Path | None) -> str:
@@ -55,8 +58,54 @@ def _rel(settings: Settings, path: Path | None) -> str:
         return str(path)
 
 
+PRUEBAS_RESPALDO = "04_Pruebas_respaldo"
+
+
+def _prueba_respaldo(job: Job, video: Path, settings: Settings, rules: dict, p: dict, brand: dict,
+                     glossary_text: str, transcript: dict, ocr: dict, technical: dict,
+                     code_findings: list[Finding], frames: list[dict], corrections: list[dict]) -> Result:
+    """Revisa SOLO con el juez de respaldo, para compararlo con Claude antes de fiarse de él.
+
+    No mueve el video, no toca el Sheet ni la lista final de hallazgos (la que usan las
+    correcciones del equipo): deja el reporte en `04_Pruebas_respaldo/<video>/` y mide el tiempo.
+    Funciona aunque el respaldo esté apagado en reglas.yaml: sirve para decidir si encenderlo.
+    """
+    cfg = {**FALLBACK_DEFAULTS, **(rules.get("juez_respaldo") or {})}
+    t0 = time.monotonic()
+    try:
+        res = run_fallback_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames,
+                                 rules, cfg, duration=float(p["duration"]), corrections=corrections)
+    except Exception as e:  # noqa: BLE001 — la prueba falla, el video queda como estaba
+        log.error("[%s] prueba del juez de respaldo: %s", job.name, e)
+        return Result("error", code_findings, None, f"juez de respaldo: {e}")
+    seconds = time.monotonic() - t0
+    findings = apply_fallback(list(code_findings), res, cfg["modelo"])
+    status = decide(findings)
+    _, evidencia = build_report(job, p, findings, status)
+    if rules.get("salida", {}).get("reporte_html"):
+        from videoqa.report_html import build_html_report
+
+        build_html_report(job, p, findings, status, evidencia)
+    base = settings.drive_root / PRUEBAS_RESPALDO
+    dest = base / job.name
+    if dest.resolve().parent != base.resolve():
+        raise ValueError(f"nombre de video inseguro: {video.name!r}")
+    shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True)
+    for name in ("reporte.md", "reporte.html", "guion_real.md"):
+        if job.path(name).exists():
+            shutil.copy2(job.path(name), dest / name)
+    if job.path("evidencia").exists():
+        shutil.copytree(job.path("evidencia"), dest / "evidencia")
+    log.info("[%s] prueba del respaldo (%s): %s en %.0f s → %s", job.name, cfg["modelo"], status, seconds, dest)
+    return Result(status, findings, dest, None, judge_seconds=seconds)
+
+
 def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None,
                   modo: str = "completo", veredicto_text: str | None = None) -> Result:
+    if modo == "prueba_respaldo":
+        # Prueba del juez de respaldo: nada de Sheet (el tablero es del flujo real).
+        sheet = SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
     sheet = sheet or SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
     job = Job(video, settings.jobs_dir)
     # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
@@ -126,6 +175,10 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             return Result("error", code_findings, None, str(e))
         log.info("[%s] entradas del juez listas en %s (esperando veredicto)", job.name, job.dir)
         return Result("pending", code_findings, None, None)
+
+    if modo == "prueba_respaldo":
+        return _prueba_respaldo(job, video, settings, rules, p, brand, glossary_text, transcript, ocr, technical,
+                                code_findings, frames["frames"], corrections)
 
     if veredicto_text is not None:
         texto = veredicto_text

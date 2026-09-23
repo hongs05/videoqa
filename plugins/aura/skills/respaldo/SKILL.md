@@ -74,6 +74,12 @@ launchctl kickstart -k gui/$UID/com.videoqa.watcher
 8. Confirma: "Listo. Cuando Claude se quede sin uso, los videos los revisa el respaldo en vez
    de esperar. En el reporte verás «Revisado con el juez de respaldo»."
 
+9. Ofrece probarlo ya con un video revisado: "Si quieres ver cómo lo hace, dime «prueba el
+   respaldo con <video>» y lo comparo con lo que dijo Claude." (Lo hace `/aura:revisar`.)
+
+**Si prefiere probar antes de encenderlo**, haz los pasos 1–5 y salta el 6: la prueba con
+`--solo-respaldo` funciona aunque esté apagado.
+
 ## Apagar
 
 Pregunta "¿Lo apago?". Con el sí, en `~/videoqa/reglas.yaml` cambia `activo: true` por
