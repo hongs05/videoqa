@@ -133,6 +133,10 @@ de Claude, edita `~/videoqa/.claude/skills/revisor-video/SKILL.md`.
 - **`⏳ En espera` en el Sheet**: Claude llegó a su límite de uso. El video sigue en `01_Entrada/`
   sin reporte y el watcher pausa la cola hasta la hora de reinicio que da el mensaje (guardada en
   `~/.videoqa/espera.json`; si no la da, una hora). No hay que hacer nada.
+- **Juez de respaldo** (`juez_respaldo` en `reglas.yaml`, lo instala `/aura:respaldo`): Ollama +
+  `qwen3.5:4b` revisan cuando Claude devuelve el límite de uso. Para probarlo sin esperar al
+  límite: `videoqa run VIDEO --solo-respaldo` (no mueve el video ni toca el Sheet; reporte en
+  `04_Pruebas_respaldo/`, con el tiempo que tardó).
 - **Falsos positivos de ortografía**: añade la palabra a `_config/glosario.txt`.
 - **Falsos positivos o errores que se escapan en general**: `/aura:corregir` (o
   `videoqa corregir VIDEO --hallazgo ID --motivo "…"` / `--no-detectado`). Las correcciones van a

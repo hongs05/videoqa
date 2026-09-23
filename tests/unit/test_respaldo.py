@@ -158,3 +158,45 @@ def test_cli_respaldo_sin_ollama(monkeypatch, capsys):
     monkeypatch.setattr(cli, "load_rules", lambda: _rules(url="http://127.0.0.1:9"))
     assert cli.main(["respaldo"]) == 1
     assert "RESPALDO NO DISPONIBLE (encendido)" in capsys.readouterr().out
+
+
+# --- Modo prueba: --solo-respaldo --------------------------------------------------------
+
+def test_prueba_respaldo_no_mueve_el_video_ni_llama_a_claude(ollama, tmp_path):
+    video, s = _video_con_etapas_cacheadas(tmp_path)
+    llamadas = []
+    rules = _rules(activo=False, url=ollama.url)  # sirve aunque esté apagado: es para decidir
+    res = process_video(video, s, rules, lambda p, c: llamadas.append(1) or "", modo="prueba_respaldo")
+    assert llamadas == [] and len(ollama.requests) == 1
+    assert video.exists(), "la prueba no mueve el video"
+    assert res.dest == s.drive_root / "04_Pruebas_respaldo" / "reel"
+    assert (res.dest / "reporte.md").exists() and res.judge_seconds is not None
+    assert res.status == "rejected"
+    assert not wait_state_path().exists(), "la prueba no toca la espera de Claude"
+    assert not (s.jobs_dir / "reel" / "findings_final.json").exists(), "ni la lista que usan las correcciones"
+
+
+def test_prueba_respaldo_sin_ollama_da_error_y_deja_todo_igual(tmp_path):
+    video, s = _video_con_etapas_cacheadas(tmp_path)
+    res = process_video(video, s, _rules(url="http://127.0.0.1:9"), _sin_uso, modo="prueba_respaldo")
+    assert res.status == "error" and res.dest is None and "juez de respaldo" in res.error
+    assert video.exists()
+
+
+def test_cli_solo_respaldo(tmp_path, monkeypatch, capsys):
+    drive = tmp_path / "drive"
+    cli.main(["init", "--drive-root", str(drive)])
+    fuera = tmp_path / "02" / "v.mp4"
+    fuera.parent.mkdir()
+    fuera.write_bytes(b"x")
+    visto = {}
+
+    def fake(video, settings, rules, runner, sheet=None, **kw):
+        visto.update(video=video, modo=kw["modo"])
+        return Result("approved", [], drive / "04_Pruebas_respaldo" / "v", judge_seconds=161.4)
+
+    monkeypatch.setattr(cli, "process_video", fake)
+    assert cli.main(["run", str(fuera), "--solo-respaldo"]) == 0
+    assert visto == {"video": fuera.resolve(), "modo": "prueba_respaldo"}
+    assert not (drive / "01_Entrada" / "v.mp4").exists(), "en prueba no se copia a Entrada"
+    assert "PRUEBA_RESPALDO APPROVED en 2 min 41 s" in capsys.readouterr().out

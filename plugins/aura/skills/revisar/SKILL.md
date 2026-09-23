@@ -109,6 +109,31 @@ avisa en una frase: "Esta vez lo revisó el modelo de respaldo de la Mac porque 
 uso; es menos preciso, así que mira con cuidado los avisos que dicen «el juez de respaldo cree
 que no es error»."
 
+## Probar el juez de respaldo con un video
+
+Si pide "revisa X solo con el respaldo", "prueba el respaldo con X" o "compara el respaldo con
+Claude en X": es una **prueba**, no la revisión oficial. No mueve el video ni toca el Sheet.
+
+1. Busca el video donde esté: `01_Entrada/`, o ya revisado en `02_Con_errores/<nombre>/` o
+   `03_Aprobado/<nombre>/`.
+2. Avisa: "Lo reviso con el modelo de la Mac. En un M1 tarda unos minutos."
+3. Lánzalo:
+
+```bash
+uv run --project ~/videoqa videoqa run "<ruta del video>" --solo-respaldo
+```
+
+   - `PRUEBA_RESPALDO <resultado> en X min Y s → <ruta>/reporte.md`: lee ese reporte (dentro de
+     `04_Pruebas_respaldo/<nombre>/`).
+   - `RESPALDO_ERROR`: casi siempre es que Ollama no está instalado o arrancado. Dile que escriba
+     `/aura:respaldo` para dejarlo listo.
+4. Explícalo como siempre, diciendo cuánto tardó. Si el video ya tenía la revisión de Claude
+   (en `02_Con_errores/` o `03_Aprobado/`), **compáralos**: qué encontraron los dos, qué solo uno,
+   y si el respaldo dejó avisos del tipo "cree que no es error". Termina con una frase de
+   veredicto ("el respaldo se acercó bastante" / "se le escaparon cosas importantes").
+5. Si aún no está encendido y la prueba salió bien, ofrece: "Si te convence, escribe
+   `/aura:respaldo` y lo dejo encendido para cuando Claude se quede sin uso."
+
 ## Paso 5 — Explicarlo
 
 Ver la sección "Cómo explicar el resultado". Al terminar, abre la carpeta:
