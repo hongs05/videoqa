@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from videoqa import learning
+from videoqa import backends, learning
 from videoqa.brand import build_brand
 from videoqa.checks.spelling import load_glossary
 from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, run_claude
@@ -234,7 +234,11 @@ def cmd_glosario(args) -> int:
         print(f"AGREGADAS: {', '.join(nuevas) if nuevas else 'ninguna'}")
         return 0
     glossary = load_glossary(ruta)
-    filas = candidatas(settings.jobs_dir, glossary)
+    try:
+        checker = backends.get_speller()(settings.idiomas)
+    except TypeError:  # backend de terceros sin soporte de idiomas
+        checker = backends.get_speller()()
+    filas = candidatas(settings.jobs_dir, glossary, checker=checker)
     print(f"CANDIDATAS {len(filas)}")
     for palabra, veces, videos in filas:
         print(f"{palabra}\t{veces}\t{videos}")

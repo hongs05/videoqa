@@ -60,6 +60,40 @@ def test_candidatas_solo_de_unknown_word_no_de_puntuacion_ni_pegadas(tmp_path):
     assert [w for w, _, _ in candidatas(jobs, set())] == ["canva"]
 
 
+def test_candidatas_descarta_lo_que_ya_conoce_el_corrector(tmp_path):
+    """Con el corrector multiidioma activo, candidatas ya vistas en revisiones pasadas
+    pueden ser palabras inglesas normales ("earnings", "moment"...) que el checker
+    aceptaría hoy: no deben proponerse, o entierran a las candidatas reales bajo ruido."""
+    jobs = tmp_path / "jobs"
+    _job(jobs, "a", ["Posible error ortográfico: earnings, aprobecha"])
+
+    class _Checker:
+        def unknown(self, words):
+            return {w for w in words if w.lower() != "earnings"}
+
+    out = candidatas(jobs, set(), checker=_Checker())
+    assert [w for w, _, _ in out] == ["aprobecha"]
+
+
+def test_candidatas_conserva_lo_que_el_corrector_no_conoce(tmp_path):
+    jobs = tmp_path / "jobs"
+    _job(jobs, "a", ["Posible error ortográfico: aprobecha"])
+
+    class _Checker:
+        def unknown(self, words):
+            return set(words)          # no conoce nada
+
+    out = candidatas(jobs, set(), checker=_Checker())
+    assert [w for w, _, _ in out] == ["aprobecha"]
+
+
+def test_candidatas_sin_checker_se_comporta_como_antes(tmp_path):
+    jobs = tmp_path / "jobs"
+    _job(jobs, "a", ["Posible error ortográfico: earnings, aprobecha"])
+    out = candidatas(jobs, set())   # checker=None por defecto
+    assert [w for w, _, _ in out] == ["aprobecha", "earnings"]
+
+
 def test_candidatas_salta_un_json_roto(tmp_path):
     jobs = tmp_path / "jobs"
     _job(jobs, "a", ["Posible error ortográfico: canva"])

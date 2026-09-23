@@ -34,7 +34,14 @@ def _palabras(finding: dict) -> list[str]:
     return [w.strip().lower() for w in titulo.split(":", 1)[1].split(",") if w.strip()]
 
 
-def candidatas(jobs_dir: Path, glossary: set[str]) -> list[tuple[str, int, int]]:
+def candidatas(jobs_dir: Path, glossary: set[str], checker=None) -> list[tuple[str, int, int]]:
+    """`checker`: el corrector ya construido (con los idiomas configurados). Las
+    revisiones pasadas se hicieron con un corrector que pudo cambiar de idiomas (Task 1);
+    sin filtrar contra el corrector ACTUAL, palabras inglesas normales que ya se aceptan
+    hoy ("earnings", "moment"...) siguen saliendo como candidatas y entierran a las
+    candidatas reales. Sin `checker` (None) el comportamiento es el de siempre: solo se
+    descarta lo que ya acepta `glossary`.
+    """
     veces: Counter[str] = Counter()
     videos: defaultdict[str, set[str]] = defaultdict(set)
     for f in sorted(Path(jobs_dir).glob("*/findings_code.json")):
@@ -50,6 +57,8 @@ def candidatas(jobs_dir: Path, glossary: set[str]) -> list[tuple[str, int, int]]
                 continue
             for w in _palabras(fnd):
                 if in_glossary(w, glossary):
+                    continue
+                if checker is not None and not checker.unknown([w]):
                     continue
                 veces[w] += 1
                 videos[w].add(f.parent.name)
