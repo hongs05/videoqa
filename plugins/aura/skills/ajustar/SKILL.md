@@ -1,7 +1,7 @@
 ---
-description: Cambia qué se marca como error, añade palabras válidas (marcas, jerga) y sube o baja la gravedad de un problema. Úsalo cuando la persona diga "no marques X" o "que el silencio bloquee".
+description: Cambia qué se marca como error, llena el glosario con las palabras del equipo y sube o baja la gravedad. Úsalo si dice "no marques X", "llena el glosario" o "que el silencio bloquee".
 disable-model-invocation: true
-allowed-tools: Read Edit Bash(launchctl kickstart:*)
+allowed-tools: Read Edit Bash(launchctl kickstart:*) Bash(uv run --project ~/videoqa videoqa glosario:*)
 ---
 
 # Ajustar la revisión
@@ -27,12 +27,59 @@ jerga).
    error de ortografía. ¿Lo aplico?"
 2. Con el sí, añade la palabra (una por línea) al final de
    `<drive_root>/_config/glosario.txt`. Crea el archivo si no existe. No dupliques: si ya está,
-   dilo ("Ya estaba en la lista") y no toques nada.
+   dilo ("Ya estaba en la lista") y no toques nada. Si el archivo está creciendo, agrupa las
+   palabras por cuenta con un comentario encima (`# Goldstone`), para que dentro de unos meses
+   se entienda por qué está cada una.
 3. Confirma: "Listo. A partir del próximo video ya no la marca."
 
 Para varias palabras a la vez, añádelas todas y confírmalo en una línea.
 
 Si te piden ver el glosario, léelo y muéstralo como una lista simple.
+
+## Caso D — "Llena el glosario" / "revisa qué palabras marca mal"
+
+Sirve para sembrar el glosario de golpe con lo que ya se revisó, en vez de ir palabra por
+palabra. Úsalo también la primera vez que se configura el equipo.
+
+```bash
+uv run --project ~/videoqa videoqa glosario
+```
+
+La primera línea dice cuántas candidatas hay; luego una por línea con las veces que se marcó
+y en cuántos videos. **No le enseñes la tabla en crudo.** Preséntalas agrupadas y en
+castellano, empezando por las más repetidas:
+
+> Encontré 18 palabras que se marcaron como error y probablemente no lo son:
+>
+> - **Nombres de marca o herramientas:** Canva, Klook, Educanab
+> - **Palabras en inglés:** earnings, calendar, featured
+> - **Jerga:** corillo, chamba
+>
+> ¿Las añado todas a la lista de palabras válidas? Si alguna SÍ es una falta, dime cuál y la dejo fuera.
+
+Con el sí (y quitando las que te diga):
+
+```bash
+uv run --project ~/videoqa videoqa glosario --agregar "canva,klook,educanab,earnings"
+```
+
+Confirma en una línea cuántas quedaron añadidas. Si la respuesta es `AGREGADAS: ninguna`, dile
+que ya estaban todas.
+
+Si no hay candidatas (`CANDIDATAS 0`), díselo así: "No hay palabras pendientes: el corrector no
+está marcando nada raro."
+
+## Caso E — "Marca mal las palabras en inglés" / "solo revisa español"
+
+El corrector consulta español e inglés: una palabra solo es falta si no existe en ninguno de
+los dos. Se cambia con la clave `idiomas` de `~/.videoqa/config.yaml`.
+
+- Si los videos son solo en español y quieren que el inglés SÍ se marque: deja `idiomas: [es]`.
+- Si vuelve a marcar inglés correcto: comprueba que la línea diga `idiomas: [es, en]`.
+
+Explícalo así: "Ahora mismo acepto palabras en español y en inglés. Si quieres que marque el
+inglés como error, lo dejo solo en español. ¿Lo cambio?" Con el sí, edita esa línea con Edit
+(créala si no está) y recuerda que solo afecta a los videos que se revisen a partir de ahora.
 
 ## Caso B — "Que X sea bloqueante / que X sea solo un aviso"
 
@@ -100,3 +147,6 @@ vista:
   marca), dilo en claro: "Eso viene de la guía de marca. Si tienes el PDF nuevo, dímelo y lo
   volvemos a cargar."
 - Si algo falla, resume en una frase y propón el siguiente paso. Nada de tracebacks.
+- El programa ya trae de fábrica una lista de palabras de redes, anglicismos y jerga (reel,
+  hashtag, Canva, chévere…). No hace falta añadir esas: si te piden una que ya viene, dilo y no
+  toques el archivo.
