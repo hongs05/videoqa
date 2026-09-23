@@ -10,6 +10,7 @@ from videoqa.claude_runner import Runner
 from videoqa.config import Settings
 from videoqa.doctor_state import load_wait_until
 from videoqa.pipeline import process_video
+from videoqa.profiles import is_client_folder
 from videoqa.sheet import SheetWriter
 
 log = logging.getLogger("videoqa")
@@ -17,10 +18,18 @@ VIDEO_EXT = {".mp4", ".mov", ".m4v"}
 FAILED_STATE_NAME = "watch_failed.json"
 
 
+def _videos_in(folder: Path) -> list[Path]:
+    return [p for p in folder.iterdir() if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in VIDEO_EXT]
+
+
 def list_videos(entrada: Path) -> list[Path]:
+    """Videos de Entrada: los sueltos y los de cada carpeta de cliente (`01_Entrada/<Cliente>/`)."""
     if not entrada.exists():
         return []
-    vids = [p for p in entrada.iterdir() if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in VIDEO_EXT]
+    vids = _videos_in(entrada)
+    for sub in entrada.iterdir():
+        if sub.is_dir() and is_client_folder(sub.name):
+            vids += _videos_in(sub)
     return sorted(vids, key=lambda p: p.stat().st_mtime)
 
 

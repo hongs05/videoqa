@@ -23,9 +23,13 @@ def _check_safe_name(job: Job) -> None:
     check_safe_stem(job.name, job.video.name)
 
 
-def deliver(job: Job, settings: Settings, status: str) -> Path:
+def deliver(job: Job, settings: Settings, status: str, client: str | None = None) -> Path:
     _check_safe_name(job)
     base = settings.aprobado if status == "approved" else settings.con_errores
+    if client:
+        # Mismo orden que en Entrada: 02_Con_errores/<Cliente>/<video>/.
+        check_safe_stem(client, client)
+        base = base / client
     dest = base / job.name
     base.mkdir(parents=True, exist_ok=True)
     if dest.resolve().parent != base.resolve():
@@ -44,4 +48,11 @@ def deliver(job: Job, settings: Settings, status: str) -> Path:
     if ev.exists():
         shutil.copytree(ev, dest / "evidencia")
     shutil.move(str(job.video), dest / job.video.name)
+    # El brief de la pieza (mismo nombre, .txt/.md) viaja con el video: así un reintento
+    # desde 02_Con_errores lo sigue teniendo al lado.
+    from videoqa.profiles import brief_path
+
+    brief = brief_path(job.video)
+    if brief is not None:
+        shutil.move(str(brief), dest / brief.name)
     return dest

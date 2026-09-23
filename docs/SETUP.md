@@ -126,6 +126,22 @@ corrige, vuelve a subir el archivo a `01_Entrada/` con el mismo nombre y espera 
 Edita `~/videoqa/reglas.yaml` (por ejemplo, `silence: blocker`) y reinicia el watcher. Para cambiar el criterio
 de Claude, edita `~/videoqa/.claude/skills/revisor-video/SKILL.md`.
 
+## Perfiles por cliente y brief
+
+- Un video en `01_Entrada/<Cliente>/` se revisa con `_config/clientes/<Cliente>/` (todo opcional,
+  lo que falta se hereda de `_config/`): `guia_de_marca.pdf` o `brand.json` (sustituye a la
+  marca general), `glosario.txt` (se suma al general), `criterios.md` (texto libre para el
+  juez; manda sobre los criterios generales) y `reglas.yaml` (solo las claves que cambian; se
+  fusionan sobre `reglas.yaml`). Lo crea `/aura:cliente`.
+- Se entrega en `02_Con_errores/<Cliente>/<video>/` o `03_Aprobado/<Cliente>/<video>/`; sus
+  jobs viven en `~/.videoqa/jobs/_clientes/<Cliente>/`; en el Sheet aparece como
+  `<Cliente> / <video>`.
+- Correcciones (`videoqa corregir`): las de un video de cliente valen solo para ese cliente;
+  `--para-todos` las hace generales.
+- **Brief:** `<video>.txt` o `.md` al lado del video (máx. ~6000 caracteres). Viaja con el
+  video al entregarlo. El juez lo compara con lo que se ve y se oye.
+- Las carpetas que empiezan por `_` o `.` dentro de `01_Entrada` se ignoran (borradores).
+
 ## Problemas comunes
 - **El video no se procesa**: ¿está la Mac encendida y Drive terminó de sincronizar? Mira `videoqa.log`.
 - **`⏸️ Pendiente` en el Sheet**: la columna Reporte tiene el motivo (Claude no respondió o la

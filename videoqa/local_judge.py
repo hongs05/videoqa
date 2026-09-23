@@ -87,13 +87,13 @@ def _simple_guion(transcript: dict) -> str:
 def run_fallback_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                        code_findings: list[Finding], frames: list[dict], rules: dict, cfg: dict,
                        duration: float, corrections: list[dict] | None = None,
-                       ask=None, skill_path: Path = SKILL_PATH) -> dict:
+                       ask=None, skill_path: Path = SKILL_PATH, context: dict | None = None) -> dict:
     """Mismo contrato que `run_judge`. `ask(prompt, images) -> texto` sustituye a Ollama en los tests."""
     small = {**rules, "claude": {**rules.get("claude", {}), "max_frames": int(cfg["max_frames"]),
                                  "frame_height": int(cfg["frame_height"])}}
     try:
         manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames,
-                                  small, corrections=corrections)
+                                  small, corrections=corrections, context=context)
         skill_text = skill_path.read_text(encoding="utf-8")
     except Exception as e:  # noqa: BLE001
         raise JudgeError(f"no se pudieron preparar las entradas del juez de respaldo: {e}") from e

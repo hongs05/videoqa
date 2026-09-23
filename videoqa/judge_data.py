@@ -131,10 +131,19 @@ def _corrections(entries: list[dict]) -> list[str]:
 
 def render(brand: dict, glossary_text: str, transcript: dict, appearances: list[dict], technical: dict,
            code_findings: list[Finding], rules: dict, photo_of: dict[str, str],
-           corrections: list[dict] | None = None) -> str:
-    """Sección "# Datos del video" del prompt. `photo_of`: frame original → foto del juez."""
-    sections = [
-        ("Marca", _brand(brand)),
+           corrections: list[dict] | None = None, context: dict | None = None) -> str:
+    """Sección "# Datos del video" del prompt. `photo_of`: frame original → foto del juez.
+
+    `context`: {"cliente", "criterios", "brief"} del perfil del cliente y de la pieza.
+    """
+    context = context or {}
+    sections = [("Marca", _brand(brand))]
+    if context.get("cliente"):
+        sections.append((f"Cliente: {context['cliente']} — criterios de revisión",
+                         [context.get("criterios") or "(sin criterios propios: aplica los generales)"]))
+    if context.get("brief"):
+        sections.append(("Brief de la pieza (lo que se planeó)", [context["brief"]]))
+    sections += [
         ("Glosario (palabras válidas)", [_glossary(glossary_text)]),
         ("Lo que se dice (transcripción)", _transcript(transcript)),
         ("Texto en pantalla (OCR) — tiempo · texto · zona · color · escena", _ocr(appearances, rules)),

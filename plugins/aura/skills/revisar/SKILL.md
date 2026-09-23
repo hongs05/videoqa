@@ -11,6 +11,14 @@ El motor vive en `~/videoqa` y todo se lanza como `uv run --project ~/videoqa vi
 Antes de nada, comprueba que la carpeta `~/videoqa` existe (`ls ~/videoqa`). Si no está, dile
 "Todavía no está instalado: escribe `/aura:instalar` y lo dejamos listo" y termina.
 
+**Carpetas de cliente.** Los videos pueden ir sueltos en `01_Entrada/` o dentro de la carpeta de
+un cliente, `01_Entrada/<Cliente>/` (se revisan con el perfil de ese cliente, ver
+`/aura:cliente`). En ese caso todas las rutas de este documento llevan el cliente en medio:
+`02_Con_errores/<Cliente>/<nombre>/`, `03_Aprobado/<Cliente>/<nombre>/`,
+`04_Pruebas_respaldo/<Cliente>/<nombre>/`. `videoqa run` sobre un video ya revisado lo devuelve
+solo a la carpeta de su cliente en `01_Entrada`, con su brief. Al explicar el resultado, di de
+qué cliente es.
+
 ## Paso 1 — Decidir qué revisar
 
 **Si nombró un video concreto** ("revisa el de la promo", "revisa promo_octubre.mp4"):
@@ -19,7 +27,7 @@ Busca el archivo en `01_Entrada/` dentro de la carpeta de Drive (`drive_root` es
 `~/.videoqa/config.yaml`):
 
 ```bash
-ls "<drive_root>/01_Entrada"
+ls "<drive_root>/01_Entrada" "<drive_root>/01_Entrada"/*/
 ```
 
 Si hay un solo candidato parecido, úsalo. Si hay varios, muéstrale la lista de nombres y pregunta

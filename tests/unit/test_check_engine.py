@@ -107,3 +107,13 @@ def test_espera_cubierta_por_el_respaldo(tmp_path):
     (Path(env["VIDEOQA_HOME"]) / "espera.json").write_text(json.dumps(
         {"hasta": "2099-09-22T19:20-06:00", "hasta_ts": int(time.time()) + 3600, "videos": [], "respaldo": True}))
     assert "revisando con el juez de respaldo" in _run(env)
+
+
+def test_cuenta_los_videos_de_las_carpetas_de_cliente(tmp_path):
+    env = _entorno(tmp_path, auth_exit=0)
+    entrada = tmp_path / "drive" / "01_Entrada"
+    (entrada / "Sushi CD").mkdir()
+    (entrada / "suelto.mp4").write_bytes(b"1")
+    (entrada / "Sushi CD" / "reel.mp4").write_bytes(b"1")
+    (entrada / "Sushi CD" / "reel.txt").write_text("brief")
+    assert "2 videos pendientes" in _run(env)

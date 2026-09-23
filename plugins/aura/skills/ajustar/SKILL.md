@@ -16,6 +16,9 @@ existe, dile "Todavía no está instalado: escribe `/aura:instalar`" y termina.
 
 Lee `drive_root` de `~/.videoqa/config.yaml` cuando lo necesites.
 
+**Si el cambio es para un cliente concreto** ("para Sushi CD, que…", "en los de Hacienda…"), no
+toques lo general: eso lo hace `/aura:cliente` en el perfil de ese cliente. Díselo y síguelo ahí.
+
 ## Caso A — "No marques la palabra X"
 
 Ejemplos: "no marques la palabra Kasa", "Molinrocha no es un error", "deja de marcar reels".

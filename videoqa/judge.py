@@ -88,7 +88,7 @@ def select_frames(frames: list[dict], appearances: list[dict], code_findings: li
 
 def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                    code_findings: list[Finding], frames: list[dict], rules: dict,
-                   corrections: list[dict] | None = None) -> dict:
+                   corrections: list[dict] | None = None, context: dict | None = None) -> dict:
     inp = job.path("judge_input")
     shutil.rmtree(inp, ignore_errors=True)
     inp.mkdir()
@@ -128,7 +128,7 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
     # Los JSON de judge_input/ se quedan como registro para depurar; al juez le llega esto,
     # en texto compacto dentro del propio prompt.
     data = render(brand, glossary_text, transcript, ocr.get("appearances", []), technical, code_findings, rules,
-                  photo_of, chosen_corrections)
+                  photo_of, chosen_corrections, context)
     return {"frames": manifest_frames, "inputs": [f"judge_input/{n}" for n in [*files, "glosario.txt"]],
             "data": data}
 
@@ -290,7 +290,7 @@ def parse_verdict(text: str, require_guion: bool = True) -> dict:
 def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                   code_findings: list[Finding], frames: list[dict], rules: dict,
                   skill_path: Path = SKILL_PATH, duration: float | None = None,
-                  corrections: list[dict] | None = None) -> str:
+                  corrections: list[dict] | None = None, context: dict | None = None) -> str:
     """Deja en el job dir todo lo que el juez necesita y devuelve el prompt.
 
     Lo usa `run_judge` (juez por `claude -p`) y también `videoqa run --hasta-juez`,
@@ -298,7 +298,7 @@ def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, o
     """
     try:
         manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
-                                  corrections=corrections)
+                                  corrections=corrections, context=context)
         skill_text = skill_path.read_text(encoding="utf-8")
     except Exception as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
         raise JudgeError(f"no se pudieron preparar las entradas del juez: {e}") from e
@@ -370,9 +370,9 @@ def clear_stale_verdict(job: Job) -> None:
 def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
               code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
               skill_path: Path = SKILL_PATH, duration: float | None = None,
-              corrections: list[dict] | None = None) -> dict:
+              corrections: list[dict] | None = None, context: dict | None = None) -> dict:
     base_prompt = prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
-                                skill_path=skill_path, duration=duration, corrections=corrections)
+                                skill_path=skill_path, duration=duration, corrections=corrections, context=context)
     manifest = json.loads(job.path("judge_manifest.json").read_text())
     clear_stale_verdict(job)
     # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.

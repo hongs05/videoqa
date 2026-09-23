@@ -111,7 +111,7 @@ def test_corregir_guarda_y_sugiere_glosario(tmp_path, capsys):
     for _ in range(2):
         assert cli.main(["corregir", "reel #3", "--hallazgo", "spell-3", "--motivo", "logo de la camiseta"]) == 0
     out = capsys.readouterr().out
-    assert "GUARDADO (falso_positivo)" in out and "SUGERIR_GLOSARIO: SUSHICD" in out
+    assert "GUARDADO (falso_positivo, para todos los clientes)" in out and "SUGERIR_GLOSARIO: SUSHICD" in out
     c = learning.load_corrections(s.config_dir)
     assert len(c) == 2 and c[0]["video"] == "REEL #3 El behind de una campaña"
 
