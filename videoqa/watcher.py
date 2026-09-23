@@ -99,7 +99,11 @@ def watch(settings: Settings | list[Settings], rules: dict, runner: Runner,
     # Límite de uso de Claude: si un video lo encontró, TODOS los siguientes también lo
     # harían. Se pausa la cola entera hasta la hora de reinicio (leída también del disco,
     # para que un reinicio del watcher no la ignore).
-    pause_until = load_wait_until() or 0.0
+    # Con el juez de respaldo encendido no se pausa de entrada: los videos los revisa el
+    # modelo local mientras Claude no tenga uso (solo se pausa si el respaldo también falla).
+    from videoqa.local_judge import fallback_config
+
+    pause_until = 0.0 if fallback_config(rules) else (load_wait_until() or 0.0)
     pause_logged = 0.0  # se avisa una vez por pausa, no en cada vuelta de 10 s
     while True:
         for carpeta in carpetas:

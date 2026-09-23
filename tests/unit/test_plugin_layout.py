@@ -19,7 +19,7 @@ PLUGIN = ROOT / "plugins" / "aura" / ".claude-plugin" / "plugin.json"
 SKILLS_DIR = ROOT / "plugins" / "aura" / "skills"
 
 # Skills con efectos secundarios: solo las lanza la persona, nunca el modelo.
-SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar"}
+SIDE_EFFECT_SKILLS = {"instalar", "ajustar", "activar-automatico", "actualizar", "respaldo"}
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 

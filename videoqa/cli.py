@@ -223,6 +223,32 @@ def cmd_corregir(args) -> int:
     return 0
 
 
+def cmd_respaldo(args) -> int:
+    """Una línea: ¿el juez de respaldo (Ollama) responde y ve imágenes?"""
+    import tempfile
+
+    from PIL import Image, ImageDraw
+
+    from videoqa.local_judge import DEFAULTS, LocalJudgeError, call_ollama
+
+    rules = load_rules()
+    cfg = {**DEFAULTS, **(rules.get("juez_respaldo") or {})}
+    estado = "encendido" if cfg.get("activo") else "apagado"
+    with tempfile.TemporaryDirectory() as tmp:
+        img = Path(tmp) / "prueba.jpg"
+        im = Image.new("RGB", (480, 200), "white")
+        ImageDraw.Draw(im).text((40, 80), "PRUEBA 42", fill="black")
+        im.save(img)
+        try:
+            out = call_ollama('Lee el texto de la imagen y responde solo con JSON: {"texto": "..."}', [img],
+                              {**cfg, "timeout_s": 600})
+        except LocalJudgeError as e:
+            print(f"RESPALDO NO DISPONIBLE ({estado}) · {e}")
+            return 1
+    print(f"RESPALDO OK ({estado}) · {cfg['modelo']} respondió: {out.strip()[:120]}")
+    return 0
+
+
 def cmd_watch(args) -> int:
     carpetas, rules = load_all_settings(), load_rules()
     principal = carpetas[0]
@@ -264,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--motivo", required=True, help="por qué, en palabras de la persona")
     p.add_argument("--segundo", type=float, help="segundo aproximado (para --no-detectado)")
     p.set_defaults(fn=cmd_corregir)
+    p = sub.add_parser("respaldo", help="comprobar el juez de respaldo local (Ollama)")
+    p.set_defaults(fn=cmd_respaldo)
     p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
     p.set_defaults(fn=cmd_doctor)
     args = ap.parse_args(argv)
