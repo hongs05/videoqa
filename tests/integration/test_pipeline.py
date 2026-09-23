@@ -53,10 +53,7 @@ def test_spelling_color_fixture_is_rejected(tmp_path, fixture_videos, monkeypatc
                         sheet=SheetWriter(lambda: SheetClient(ws), tmp_path / "pending.json"))
     assert res.status == "rejected"
     checks = {f.check for f in res.findings}
-    # Con inglés activo por defecto (Settings.idiomas), "Aprobecha" se explica como
-    # "prob" (inglés informal) + "echa" (español) y baja a "glued words" (info) en vez
-    # de "unknown_word" (blocker); el video igual se rechaza por brand_color.
-    assert {"spelling_glued_words", "brand_color"} <= checks
+    assert {"spelling_unknown_word", "brand_color"} <= checks
     assert res.dest == s.con_errores / "spelling_color"
     assert not video.exists() and (res.dest / "spelling_color.mp4").exists()
     report = (res.dest / "reporte.md").read_text()

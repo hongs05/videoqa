@@ -1,5 +1,5 @@
-from videoqa.checks.spelling import (BASE_GLOSSARY_PATH, MacSpellChecker, check_spelling, in_glossary,
-                                     load_base_glossary, load_glossary, unknown_words)
+from videoqa.checks.spelling import (BASE_GLOSSARY_PATH, MacSpellChecker, _Vocab, check_spelling,
+                                     in_glossary, load_base_glossary, load_glossary, unknown_words)
 from videoqa.config import load_rules
 
 CHECKER = MacSpellChecker()
@@ -130,6 +130,26 @@ def test_no_consulta_el_segundo_idioma_si_el_primero_ya_la_conoce():
     c = _checker({"es": {"hola"}, "en": {"hola"}})
     c.is_known("hola")
     assert [l for _, l in c._sc.vistas] == ["es"]
+
+
+def test_is_known_primary_solo_consulta_el_primer_idioma():
+    c = _checker({"es": {"hola"}, "en": {"earnings"}})
+    assert c.is_known_primary("hola") is True
+    assert c.is_known_primary("earnings") is False   # solo inglés la conoce; primario es "es"
+    assert [l for _, l in c._sc.vistas] == ["es", "es"]
+
+
+def test_glued_words_no_mezcla_idiomas_al_partir_una_palabra():
+    """"prob" (inglés informal) + "echa" (español) explicaban el typo real "Aprobecha"
+    como palabras pegadas y lo bajaban de bloqueante a info. El split solo debe usar el
+    idioma principal: una palabra pegada por el OCR está pegada en UN idioma."""
+    checker = _checker({"es": {"echa", "casa"}, "en": {"prob", "now"}})
+    vocab = _Vocab(checker, glossary=set(), segments=[], appearances=[])
+    a = {"t_start": 1.0, "t_end": 3.0}
+    assert vocab.classify("aprobecha", a) == "unknown"
+    # en cambio una palabra pegada de verdad, con las dos mitades en español, sí se
+    # explica como "glued" ("la" es palabra corta conocida; "casa" la conoce el checker).
+    assert vocab.classify("lacasa", a) == "glued"
 
 
 def test_in_glossary_exacta_y_plural():

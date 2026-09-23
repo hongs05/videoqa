@@ -64,6 +64,17 @@ class MacSpellChecker:
     def is_known(self, word: str) -> bool:
         return any(self._known_in(word, lang) for lang in self._langs)
 
+    def is_known_primary(self, word: str) -> bool:
+        """Solo el idioma principal (`self._langs[0]`).
+
+        Para el detector de "palabras pegadas" (`_Vocab.split`): un rótulo con espacios
+        perdidos por el OCR está pegado en UN idioma, el del video. Un fragmento que solo
+        se explica por un idioma secundario ("prob" en inglés dentro de "Aprobecha", typo
+        de "Aprovecha") no es una palabra pegada real, es una excusa para no marcar un
+        error de ortografía.
+        """
+        return self._known_in(word, self._langs[0])
+
     def unknown(self, words) -> set[str]:
         return {w for w in words if not self.is_known(w)}
 
@@ -155,7 +166,13 @@ class _Vocab:
         if in_glossary(part, self.glossary) or part in self.spoken:
             return True
         if part not in self._known:
-            self._known[part] = not self.checker.unknown([part])
+            # Solo el idioma principal: un rótulo pegado por el OCR está pegado en UN
+            # idioma, y un fragmento que solo cuela por un idioma secundario ("prob" en
+            # inglés dentro de "Aprobecha") es casi siempre una excusa para un typo real,
+            # no una palabra pegada. Backends de terceros sin `is_known_primary` siguen
+            # funcionando con el comportamiento anterior (todos los idiomas).
+            comprobar = getattr(self.checker, "is_known_primary", None)
+            self._known[part] = comprobar(part) if comprobar else not self.checker.unknown([part])
         return self._known[part]
 
     def split(self, word: str) -> list[str] | None:
