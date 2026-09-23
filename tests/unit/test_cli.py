@@ -223,3 +223,36 @@ def test_doctor_falla_ante_un_error_inesperado(monkeypatch, capsys):
     out = capsys.readouterr().out.strip()
     assert out.startswith("CRITERIO SIN SESIÓN · no pude comprobarlo")
     assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is False
+
+
+def test_glosario_lista_candidatas(tmp_path, monkeypatch, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    capsys.readouterr()  # descarta la salida de `init`; solo interesa la de `glosario`
+    jobs = videoqa_home() / "jobs" / "v1"
+    jobs.mkdir(parents=True)
+    # "kasa" (y no "klook"): "klook" ya viene en el glosario base empaquetado (Task 2),
+    # así que candidatas() lo descartaría y CANDIDATAS daría 0.
+    (jobs / "findings_code.json").write_text(json.dumps(
+        [{"check": "spelling_unknown_word", "title": "Posible error ortográfico: kasa"}]))
+    assert main(["glosario"]) == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[0] == "CANDIDATAS 1"
+    assert "kasa" in out
+
+
+def test_glosario_agrega_al_archivo_del_equipo(tmp_path, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    assert main(["glosario", "--agregar", "Klook, canva"]) == 0
+    assert "AGREGADAS: klook, canva" in capsys.readouterr().out
+    assert "klook" in (drive / "_config" / "glosario.txt").read_text(encoding="utf-8")
+
+
+def test_glosario_agregar_sin_novedades(tmp_path, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    main(["glosario", "--agregar", "klook"])
+    capsys.readouterr()
+    main(["glosario", "--agregar", "klook"])
+    assert "AGREGADAS: ninguna" in capsys.readouterr().out

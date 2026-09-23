@@ -12,6 +12,7 @@ import yaml
 
 from videoqa import learning
 from videoqa.brand import build_brand
+from videoqa.checks.spelling import load_glossary
 from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, run_claude
 from videoqa.config import (
     Settings,
@@ -24,6 +25,7 @@ from videoqa.config import (
 )
 from videoqa.doctor_state import write_doctor_state, write_wait_state
 from videoqa.findings import Finding, load_findings, sort_findings
+from videoqa.glosario import agregar, candidatas
 from videoqa.pipeline import process_video
 from videoqa.report import fmt_t
 from videoqa.sheet import SheetClient, SheetWriter
@@ -223,6 +225,22 @@ def cmd_corregir(args) -> int:
     return 0
 
 
+def cmd_glosario(args) -> int:
+    """Propone palabras ya vistas en los videos revisados, o las añade al glosario."""
+    settings = load_settings()
+    ruta = settings.config_dir / "glosario.txt"
+    if args.agregar:
+        nuevas = agregar(ruta, [w for w in args.agregar.split(",")])
+        print(f"AGREGADAS: {', '.join(nuevas) if nuevas else 'ninguna'}")
+        return 0
+    glossary = load_glossary(ruta)
+    filas = candidatas(settings.jobs_dir, glossary)
+    print(f"CANDIDATAS {len(filas)}")
+    for palabra, veces, videos in filas:
+        print(f"{palabra}\t{veces}\t{videos}")
+    return 0
+
+
 def cmd_watch(args) -> int:
     carpetas, rules = load_all_settings(), load_rules()
     principal = carpetas[0]
@@ -266,6 +284,9 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_corregir)
     p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
     p.set_defaults(fn=cmd_doctor)
+    p = sub.add_parser("glosario", help="proponer palabras para el glosario del equipo")
+    p.add_argument("--agregar", metavar="PALABRAS", help="añadir estas palabras (separadas por comas)")
+    p.set_defaults(fn=cmd_glosario)
     args = ap.parse_args(argv)
     return args.fn(args)
 
