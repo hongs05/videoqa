@@ -37,6 +37,7 @@ packages = ["videoqa"]
 [tool.hatch.build.targets.wheel.force-include]
 "videoqa/prompts/revisor-video.md" = "videoqa/prompts/revisor-video.md"
 "videoqa/reglas.yaml" = "videoqa/reglas.yaml"
+"videoqa/data/glosario_base.txt" = "videoqa/data/glosario_base.txt"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

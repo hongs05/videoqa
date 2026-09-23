@@ -8,6 +8,16 @@ from videoqa.findings import Finding
 
 WORD_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+")
 
+# Glosario base empaquetado: palabras de redes, anglicismos y jerga que el diccionario
+# de macOS no reconoce y que NO son faltas. Se suma al glosario del equipo.
+BASE_GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "data" / "glosario_base.txt"
+
+# Terminaciones de plural que se prueban contra el glosario: "corillo" en la lista
+# también vale para "corillos". Nunca se recorta por debajo de 3 letras para no
+# convertir una falta corta en una palabra válida.
+_PLURALES = ("es", "s")
+_MIN_RAIZ = 3
+
 NSNOTFOUND = 0x7FFFFFFFFFFFFFFF
 
 # Minúscula tras punto seguido de espacio. El lookbehind de dígito evita marcar
@@ -63,15 +73,39 @@ class MacSpellChecker:
         return str(guesses[0]) if guesses else None
 
 
-def load_glossary(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
+def _read_words(path: Path) -> set[str]:
     words = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return words
+    for line in lines:
         line = line.strip()
         if line and not line.startswith("#"):
             words.add(line.lower())
     return words
+
+
+def load_base_glossary() -> set[str]:
+    return _read_words(BASE_GLOSSARY_PATH)
+
+
+def load_glossary(path: Path, incluir_base: bool = True) -> set[str]:
+    words = _read_words(path)
+    return words | load_base_glossary() if incluir_base else words
+
+
+def in_glossary(word: str, glossary: set[str]) -> bool:
+    """La palabra está en el glosario, o es su plural (o su singular)."""
+    w = word.lower()
+    if w in glossary:
+        return True
+    for suf in _PLURALES:
+        if w.endswith(suf) and len(w) - len(suf) >= _MIN_RAIZ and w[: -len(suf)] in glossary:
+            return True
+        if f"{w}{suf}" in glossary:
+            return True
+    return False
 
 
 def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
@@ -81,7 +115,7 @@ def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
     # `glosario.txt`.
     out = []
     for w in WORD_RE.findall(_NON_WORDS_RE.sub(" ", text)):
-        if len(w) < 3 or w.lower() in glossary:
+        if len(w) < 3 or in_glossary(w, glossary):
             continue
         if checker.unknown([w]):
             out.append(w)
@@ -118,7 +152,7 @@ class _Vocab:
     def known(self, part: str) -> bool:
         if len(part) <= 2:
             return part in _SHORT_WORDS
-        if part in self.glossary or part in self.spoken:
+        if in_glossary(part, self.glossary) or part in self.spoken:
             return True
         if part not in self._known:
             self._known[part] = not self.checker.unknown([part])

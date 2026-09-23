@@ -1,4 +1,5 @@
-from videoqa.checks.spelling import MacSpellChecker, check_spelling, load_glossary, unknown_words
+from videoqa.checks.spelling import (BASE_GLOSSARY_PATH, MacSpellChecker, check_spelling, in_glossary,
+                                     load_base_glossary, load_glossary, unknown_words)
 from videoqa.config import load_rules
 
 CHECKER = MacSpellChecker()
@@ -8,11 +9,14 @@ def app(text, t=1.0):
             "frame": "frames/sec_0003.jpg", "frames": []}
 
 def test_load_glossary_missing_file(tmp_path):
-    assert load_glossary(tmp_path / "no.txt") == set()
+    # Desde Task 2, load_glossary suma siempre el glosario base empaquetado; sin
+    # incluir_base=False, un archivo del equipo inexistente ya no devuelve set() vacío.
+    assert load_glossary(tmp_path / "no.txt", incluir_base=False) == set()
 
 def test_load_glossary_lowercases(tmp_path):
     p = tmp_path / "g.txt"; p.write_text("VideoQA\n# comentario\n\nTikTok\n")
-    assert load_glossary(p) == {"videoqa", "tiktok"}
+    # incluir_base=False para comprobar solo lo que aporta el archivo del equipo.
+    assert load_glossary(p, incluir_base=False) == {"videoqa", "tiktok"}
 
 def test_unknown_words_respects_glossary_caps_and_short():
     assert unknown_words("Aprobecha la oferta en TikTok", CHECKER, {"tiktok"}) == ["Aprobecha"]
@@ -126,3 +130,64 @@ def test_no_consulta_el_segundo_idioma_si_el_primero_ya_la_conoce():
     c = _checker({"es": {"hola"}, "en": {"hola"}})
     c.is_known("hola")
     assert [l for _, l in c._sc.vistas] == ["es"]
+
+
+def test_in_glossary_exacta_y_plural():
+    g = {"corillo", "reel"}
+    assert in_glossary("corillo", g)
+    assert in_glossary("Corillo", g)
+    assert in_glossary("corillos", g)   # plural en -s
+    assert in_glossary("reels", g)
+    assert not in_glossary("corillito", g)
+
+
+def test_in_glossary_plural_en_es():
+    g = {"mall"}
+    assert in_glossary("malles", g)
+
+
+def test_in_glossary_entrada_en_plural_acepta_singular():
+    g = {"stories"}
+    assert in_glossary("stories", g)
+
+
+def test_in_glossary_no_recorta_por_debajo_de_min_raiz():
+    """_MIN_RAIZ = 3: no se acepta como plural una raíz de menos de 3 letras, aunque
+    "as" + "es" = "ases" parezca a simple vista un plural razonable de "as"."""
+    assert not in_glossary("ases", {"as"})
+    # con una raíz de 3+ letras sí se acepta el plural en "-es".
+    assert in_glossary("panes", {"pan"})
+
+
+def test_el_glosario_base_existe_y_trae_palabras():
+    assert BASE_GLOSSARY_PATH.exists()
+    base = load_base_glossary()
+    assert {"reel", "storie", "hashtag", "canva"} <= base
+    assert all(w == w.lower() for w in base)
+
+
+def test_load_glossary_suma_el_base(tmp_path):
+    p = tmp_path / "glosario.txt"
+    p.write_text("Kasa\n# comentario\n\nMolinrocha\n")
+    g = load_glossary(p)
+    assert {"kasa", "molinrocha"} <= g
+    assert "reel" in g                      # viene del base
+    assert "# comentario" not in g
+
+
+def test_load_glossary_puede_excluir_el_base(tmp_path):
+    p = tmp_path / "glosario.txt"
+    p.write_text("Kasa\n")
+    assert load_glossary(p, incluir_base=False) == {"kasa"}
+
+
+def test_load_glossary_sin_archivo_del_equipo_devuelve_el_base(tmp_path):
+    g = load_glossary(tmp_path / "no_existe.txt")
+    assert "reel" in g
+
+
+def test_unknown_words_respeta_el_plural_del_glosario():
+    class _C:
+        def unknown(self, words):
+            return set(words)          # el diccionario no conoce nada
+    assert unknown_words("Los corillos llegaron", _C(), {"corillo"}) == ["Los", "llegaron"]
