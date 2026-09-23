@@ -25,6 +25,7 @@ from videoqa.config import (
 from videoqa.doctor_state import write_doctor_state, write_wait_state
 from videoqa.findings import Finding, load_findings, sort_findings
 from videoqa.pipeline import process_video
+from videoqa.profiles import JOBS_SUBDIR, brief_path, client_of, is_client_folder
 from videoqa.report import fmt_t
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
@@ -100,13 +101,21 @@ def cmd_run(args) -> int:
     video = Path(args.video).expanduser().resolve()
     entrada = settings.entrada.resolve()
     solo_respaldo = getattr(args, "solo_respaldo", False)
-    if video.parent != entrada and video.exists() and not solo_respaldo:
+    en_entrada = video.parent == entrada or (video.parent.parent == entrada and is_client_folder(video.parent.name))
+    if not en_entrada and video.exists() and not solo_respaldo:
         # Un video de fuera (p. ej. el de prueba que viene con el motor) se copia:
-        # deliver() MUEVE el archivo, y mover el fixture del repo lo deja sucio.
-        entrada.mkdir(parents=True, exist_ok=True)
-        destino = entrada / video.name
+        # deliver() MUEVE el archivo, y mover el fixture del repo lo deja sucio. Si ya se
+        # revisó para un cliente (02_Con_errores/<Cliente>/…), vuelve a la carpeta de ese
+        # cliente, con su brief, para que se revise con su perfil.
+        cliente = client_of(video, settings)
+        carpeta = entrada / cliente if cliente else entrada
+        carpeta.mkdir(parents=True, exist_ok=True)
+        destino = carpeta / video.name
         shutil.copy2(video, destino)
-        print(f"Copiado a 01_Entrada: {video.name}")
+        brief = brief_path(video)
+        if brief is not None:
+            shutil.copy2(brief, carpeta / brief.name)
+        print(f"Copiado a 01_Entrada{'/' + cliente if cliente else ''}: {video.name}")
         video = destino
     modo = "preparar" if getattr(args, "hasta_juez", False) else "prueba_respaldo" if solo_respaldo else "completo"
     veredicto_text = Path(args.veredicto).expanduser().read_text(encoding="utf-8") if getattr(args, "veredicto", None) else None
@@ -168,20 +177,35 @@ _SEVERITY_WORD = {"blocker": "BLOQUEA", "warning": "AVISO", "info": "INFO"}
 def _find_job(settings: Settings, name: str) -> Path | None:
     """Carpeta de trabajo de un video por su nombre, o por un trozo si es inequívoco."""
     jobs = settings.jobs_dir
-    exact = jobs / Path(name).stem
-    if exact.is_dir():
-        return exact
-    needle = " ".join(Path(name).stem.lower().split())
-    matches = [d for d in jobs.iterdir() if d.is_dir() and needle in " ".join(d.name.lower().split())] if jobs.is_dir() else []
+    # Los jobs de un cliente viven en jobs/_clientes/<Cliente>/<video>.
+    all_jobs = [d for d in jobs.iterdir() if d.is_dir() and d.name != JOBS_SUBDIR] if jobs.is_dir() else []
+    clientes = jobs / JOBS_SUBDIR
+    if clientes.is_dir():
+        all_jobs += [d for c in clientes.iterdir() if c.is_dir() for d in c.iterdir() if d.is_dir()]
+    stem = Path(name).stem
+    exact = [d for d in all_jobs if d.name == stem]
+    if len(exact) == 1:
+        return exact[0]
+    needle = " ".join(stem.lower().split())
+    matches = [d for d in all_jobs if needle in " ".join(d.name.lower().split())]
     if len(matches) == 1:
         return matches[0]
     if matches:
         print("VARIOS videos coinciden; di cuál:")
         for d in sorted(matches):
-            print(f"- {d.name}")
+            print(f"- {_job_label(d)}")
     else:
         print(f"NO_ENCONTRADO: no hay ningún video revisado que se llame como «{name}»")
     return None
+
+
+def _job_client(job_dir: Path) -> str | None:
+    return job_dir.parent.name if job_dir.parent.parent.name == JOBS_SUBDIR else None
+
+
+def _job_label(job_dir: Path) -> str:
+    client = _job_client(job_dir)
+    return f"{client} / {job_dir.name}" if client else job_dir.name
 
 
 def _job_findings(job_dir: Path) -> list[Finding]:
@@ -201,7 +225,7 @@ def cmd_hallazgos(args) -> int:
     if job_dir is None:
         return 1
     findings = sort_findings(_job_findings(job_dir))
-    print(f"VIDEO {job_dir.name} · {len(findings)} hallazgo(s)")
+    print(f"VIDEO {_job_label(job_dir)} · {len(findings)} hallazgo(s)")
     for f in findings:
         detalle = f.detail if len(f.detail) <= 160 else f.detail[:157] + "…"
         print(f"[{f.id}] {fmt_t(f.t_start)} {_SEVERITY_WORD.get(f.severity, f.severity)} · {f.title} — {detalle}")
@@ -222,9 +246,13 @@ def cmd_corregir(args) -> int:
             return 1
         finding = by_id[args.hallazgo].to_dict()
     tipo = "no_detectado" if args.no_detectado else "falso_positivo"
+    # Por defecto, la corrección de un video de cliente vale solo para ese cliente;
+    # --para-todos la hace general (p. ej. "los logos de la ropa no cuentan").
+    cliente = None if args.para_todos else _job_client(job_dir)
     entry = learning.add_correction(settings.config_dir, tipo=tipo, video=job_dir.name, motivo=args.motivo,
-                                    finding=finding, segundo=args.segundo)
-    print(f"GUARDADO ({tipo}) en {learning.path_for(settings.config_dir)}")
+                                    finding=finding, segundo=args.segundo, cliente=cliente)
+    alcance = f"solo para {cliente}" if cliente else "para todos los clientes"
+    print(f"GUARDADO ({tipo}, {alcance}) en {learning.path_for(settings.config_dir)}")
     repetidas = learning.repeated_words(learning.load_corrections(settings.config_dir), entry.get("palabras", []))
     if repetidas:
         print(f"SUGERIR_GLOSARIO: {', '.join(repetidas)}")
@@ -299,6 +327,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--no-detectado", action="store_true", help="un error que la revisión no vio")
     p.add_argument("--motivo", required=True, help="por qué, en palabras de la persona")
     p.add_argument("--segundo", type=float, help="segundo aproximado (para --no-detectado)")
+    p.add_argument("--para-todos", action="store_true",
+                   help="que la corrección valga para todos los clientes, no solo el del video")
     p.set_defaults(fn=cmd_corregir)
     p = sub.add_parser("respaldo", help="comprobar el juez de respaldo local (Ollama)")
     p.set_defaults(fn=cmd_respaldo)

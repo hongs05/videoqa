@@ -10,7 +10,7 @@ from pathlib import Path
 
 from videoqa.brand import load_brand
 from videoqa.checks.brand_color import check_brand_colors
-from videoqa.checks.spelling import check_spelling, load_glossary
+from videoqa.checks.spelling import check_spelling
 from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
 from videoqa.claude_runner import Runner, UsageLimitError
@@ -21,6 +21,8 @@ from videoqa.gate import decide, deliver
 from videoqa.job import Job
 from videoqa.judge import JudgeError, prepare_judge, run_judge
 from videoqa.learning import load_corrections
+from videoqa.profiles import (brand_dir, client_of, glossary_words, jobs_root, load_brief, load_profile,
+                               merged_rules)
 from videoqa.local_judge import DEFAULTS as FALLBACK_DEFAULTS
 from videoqa.local_judge import apply_fallback, fallback_config, run_fallback_judge
 from videoqa.report import build_report
@@ -63,7 +65,8 @@ PRUEBAS_RESPALDO = "04_Pruebas_respaldo"
 
 def _prueba_respaldo(job: Job, video: Path, settings: Settings, rules: dict, p: dict, brand: dict,
                      glossary_text: str, transcript: dict, ocr: dict, technical: dict,
-                     code_findings: list[Finding], frames: list[dict], corrections: list[dict]) -> Result:
+                     code_findings: list[Finding], frames: list[dict], corrections: list[dict],
+                     context: dict | None = None, client: str | None = None) -> Result:
     """Revisa SOLO con el juez de respaldo, para compararlo con Claude antes de fiarse de él.
 
     No mueve el video, no toca el Sheet ni la lista final de hallazgos (la que usan las
@@ -74,7 +77,8 @@ def _prueba_respaldo(job: Job, video: Path, settings: Settings, rules: dict, p: 
     t0 = time.monotonic()
     try:
         res = run_fallback_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames,
-                                 rules, cfg, duration=float(p["duration"]), corrections=corrections)
+                                 rules, cfg, duration=float(p["duration"]), corrections=corrections,
+                                 context=context)
     except Exception as e:  # noqa: BLE001 — la prueba falla, el video queda como estaba
         log.error("[%s] prueba del juez de respaldo: %s", job.name, e)
         return Result("error", code_findings, None, f"juez de respaldo: {e}")
@@ -87,6 +91,8 @@ def _prueba_respaldo(job: Job, video: Path, settings: Settings, rules: dict, p: 
 
         build_html_report(job, p, findings, status, evidencia)
     base = settings.drive_root / PRUEBAS_RESPALDO
+    if client:
+        base = base / client
     dest = base / job.name
     if dest.resolve().parent != base.resolve():
         raise ValueError(f"nombre de video inseguro: {video.name!r}")
@@ -107,7 +113,12 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         # Prueba del juez de respaldo: nada de Sheet (el tablero es del flujo real).
         sheet = SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
     sheet = sheet or SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
-    job = Job(video, settings.jobs_dir)
+    # Perfil del cliente (por la carpeta del video): marca, glosario, criterios y reglas propias.
+    client = client_of(video, settings)
+    profile = load_profile(settings, client)
+    rules = merged_rules(rules, profile.rule_overrides)
+    row_name = f"{client} / {video.name}" if client else video.name
+    job = Job(video, jobs_root(settings, client))
     # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
     # o si no hay estado previo. Reintentar el MISMO archivo reaprovecha probe/transcribe/
     # frames/ocr, que son las etapas caras; si no, cada reintento volvía a correr Whisper.
@@ -118,13 +129,13 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     job.record_video()
     started = datetime.now()
     log.info("[%s] inicio", job.name)
-    sheet.write(row_for(video.name, "processing", [], "", _rel(settings, video), 0, started))
+    sheet.write(row_for(row_name, "processing", [], "", _rel(settings, video), 0, started))
 
     # Etapa 1: extracción (probe/transcribe/technical/frames/ocr/color) + checks de código.
     # Cualquier fallo aquí deja el video intacto en Entrada (deliver() nunca se llama).
     stage = "brand"
     try:
-        brand = load_brand(settings.config_dir, runner)
+        brand = load_brand(brand_dir(settings, profile), runner)
 
         stage = "extraction"
         p = job.run_stage("probe", "probe.json", probe)
@@ -141,9 +152,8 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             job.path("ocr_color.json").unlink(missing_ok=True)
         ocr = job.run_stage("color", "ocr_color.json", lambda j: add_colors(j, ocr))
 
-        glossary_path = settings.config_dir / "glosario.txt"
-        glossary_text = glossary_path.read_text(encoding="utf-8") if glossary_path.exists() else ""
-        glossary = load_glossary(glossary_path)
+        glossary_text = profile.glossary_text  # general + el del cliente
+        glossary = glossary_words(glossary_text)
         apps = ocr["appearances"]
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
         # feed vertical; en 16:9 el check no aplica.
@@ -157,7 +167,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
         prefix = "brand: " if stage == "brand" else ""
         msg = f"{prefix}{type(e).__name__}: {e}"
         log.exception("[%s] fallo de procesamiento", job.name)
-        sheet.write(row_for(video.name, "error", [], "", _rel(settings, video), 0, datetime.now(), note=msg))
+        sheet.write(row_for(row_name, "error", [], "", _rel(settings, video), 0, datetime.now(), note=msg))
         return Result("error", [], None, msg)
 
     try:
@@ -165,11 +175,16 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     except OSError as e:  # Drive sin sincronizar, permisos…: se revisa igual, sin memoria
         log.warning("[%s] no se pudieron leer las correcciones del equipo: %s", job.name, e)
         corrections = []
+    # Las correcciones de OTRO cliente no aplican ("corillo es jerga nuestra" es de uno solo);
+    # las generales (sin cliente) valen para todos.
+    corrections = [c for c in corrections if not c.get("cliente") or c.get("cliente") == client]
+    context = {"cliente": client, "criterios": profile.criteria, "brief": load_brief(video)}
 
     if modo == "preparar":
         try:
             prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
-                          frames["frames"], rules, duration=float(p["duration"]), corrections=corrections)
+                          frames["frames"], rules, duration=float(p["duration"]), corrections=corrections,
+                          context=context)
         except JudgeError as e:
             log.error("[%s] %s", job.name, e)
             return Result("error", code_findings, None, str(e))
@@ -178,7 +193,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
 
     if modo == "prueba_respaldo":
         return _prueba_respaldo(job, video, settings, rules, p, brand, glossary_text, transcript, ocr, technical,
-                                code_findings, frames["frames"], corrections)
+                                code_findings, frames["frames"], corrections, context, client)
 
     if veredicto_text is not None:
         texto = veredicto_text
@@ -201,7 +216,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
                                       datetime.fromtimestamp(espera).astimezone())
             verdict = run_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
                                  frames["frames"], rules, runner, duration=float(p["duration"]),
-                                 corrections=corrections)
+                                 corrections=corrections, context=context)
         except UsageLimitError as e:
             retry_at = e.resets_at or (datetime.now().astimezone() + WAIT_FALLBACK)
             fallback_findings = None
@@ -209,7 +224,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
                 try:
                     res = run_fallback_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings,
                                              frames["frames"], rules, fallback, duration=float(p["duration"]),
-                                             corrections=corrections)
+                                             corrections=corrections, context=context)
                     fallback_findings = apply_fallback(code_findings, res, fallback["modelo"])
                 except Exception as fe:  # noqa: BLE001 — sin respaldo, el video espera a Claude
                     log.warning("[%s] el juez de respaldo tampoco pudo revisar: %s", job.name, fe)
@@ -221,7 +236,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
                 write_wait_state(retry_at, video.name)
                 note = f"En espera: Claude sin uso disponible hasta las {retry_at:%H:%M}"
                 log.warning("[%s] %s; el video se queda en 01_Entrada", job.name, note)
-                sheet.write(row_for(video.name, "waiting", [], "", _rel(settings, video), float(p["duration"]),
+                sheet.write(row_for(row_name, "waiting", [], "", _rel(settings, video), float(p["duration"]),
                                     datetime.now(), note=note))
                 return Result("waiting", code_findings, None, str(e), retry_at=retry_at)
             write_wait_state(retry_at, "", respaldo=True)
@@ -269,16 +284,16 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             from videoqa.report_html import build_html_report
 
             build_html_report(job, p, findings, status, evidencia)
-        dest = deliver(job, settings, status)
+        dest = deliver(job, settings, status, client=client)
         # Con el juez caído la columna "Reporte" muestra el motivo (la ruta del reporte
         # parcial queda en el propio reporte, dentro de la carpeta del video).
         note = f"Claude no disponible: {judge_error}" if judge_error else respaldo_note
-        sheet.write(row_for(video.name, status, findings, _rel(settings, dest / "reporte.md"), _rel(settings, dest / video.name),
+        sheet.write(row_for(row_name, status, findings, _rel(settings, dest / "reporte.md"), _rel(settings, dest / video.name),
                             float(p["duration"]), datetime.now(), note=note))
         log.info("[%s] %s → %s", job.name, status, dest)
         return Result(status, findings, dest, judge_error)
     except Exception as e:  # noqa: BLE001 — fallo tras la extracción (reporte, entrega o Sheet)
         msg = f"{type(e).__name__}: {e}"
         log.exception("[%s] fallo tras extracción", job.name)
-        sheet.write(row_for(video.name, "error", findings, "", _rel(settings, video), 0, datetime.now(), note=msg))
+        sheet.write(row_for(row_name, "error", findings, "", _rel(settings, video), 0, datetime.now(), note=msg))
         return Result("error", findings, dest, msg)

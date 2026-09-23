@@ -37,7 +37,7 @@ esac
 
 PEND="?"
 if [ -n "$DRIVE" ] && [ -d "$DRIVE/01_Entrada" ]; then
-  PEND="$(find "$DRIVE/01_Entrada" -maxdepth 1 -type f ! -name '.*' \
+  PEND="$(find "$DRIVE/01_Entrada" -maxdepth 2 -type f ! -name '.*' ! -path '*/.*/*' ! -path '*/_*/*' \
             \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.m4v' \) 2>/dev/null | wc -l | tr -d ' ')"
 fi
 

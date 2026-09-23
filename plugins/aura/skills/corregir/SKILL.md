@@ -40,6 +40,17 @@ Cada línea es `[id] segundo GRAVEDAD · título — detalle`. Elige el que desc
 - Si varios hallazgos encajan (el mismo error en distintos segundos), corrige todos.
 - Si ninguno encaja, dile qué encontraste en ese video y pregunta a cuál se refiere.
 
+## Paso 2b — ¿Solo este cliente o todos?
+
+Si el video es de un cliente (en `videoqa hallazgos` aparece como `VIDEO <Cliente> / <nombre>`),
+decide el alcance:
+
+- Si es algo propio de ese cliente (su jerga, su producto, su estilo) → solo ese cliente (lo
+  normal, no hace falta preguntar).
+- Si es algo que vale para cualquiera ("los logos de la ropa no son faltas", "el texto de los
+  carteles del local no cuenta") → para todos: añade `--para-todos`.
+- Si dudas, pregunta: "¿Esto vale solo para <Cliente> o para todos los clientes?"
+
 ## Paso 3 — Confirmar y guardar
 
 Resúmelo en una frase y pregunta: "Voy a enseñarle que **el logo SUSHICD de la camiseta no es
@@ -50,13 +61,13 @@ Con el sí:
 - "Eso no es error":
 
 ```bash
-uv run --project ~/videoqa videoqa corregir "<video>" --hallazgo <id> --motivo "<motivo en palabras de la persona>"
+uv run --project ~/videoqa videoqa corregir "<video>" --hallazgo <id> --motivo "<motivo en palabras de la persona>" [--para-todos]
 ```
 
 - "Se le pasó":
 
 ```bash
-uv run --project ~/videoqa videoqa corregir "<video>" --no-detectado --motivo "<qué debió marcar y por qué>" --segundo <segundo, si lo sabe>
+uv run --project ~/videoqa videoqa corregir "<video>" --no-detectado --motivo "<qué debió marcar y por qué>" --segundo <segundo, si lo sabe> [--para-todos]
 ```
 
 Confirma: "Listo, aprendido. Lo tendrá en cuenta desde el próximo video."
