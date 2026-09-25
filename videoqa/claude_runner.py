@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -12,6 +13,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from videoqa.config import load_token
 
 Runner = Callable[[str, Path], str]
+
+log = logging.getLogger("videoqa")
 
 _FENCE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.S)
 
@@ -138,7 +141,25 @@ def run_claude(prompt: str, cwd: Path, claude_bin: str = "claude", timeout: int 
         raise ClaudeError(f"salida no JSON: {proc.stdout[:500]}") from e
     if data.get("is_error"):
         raise _claude_error(str(data.get("result")))
+    _log_usage(data)
     return str(data.get("result", ""))
+
+
+def _log_usage(data: dict) -> None:
+    """Deja en el registro lo que tardó y costó la llamada, si claude -p lo informa."""
+    parts = []
+    if isinstance(data.get("duration_ms"), (int, float)):
+        parts.append(f"{data['duration_ms'] / 1000:.0f} s")
+    if isinstance(data.get("total_cost_usd"), (int, float)):
+        parts.append(f"~{data['total_cost_usd']:.3f} USD")
+    usage = data.get("usage")
+    if isinstance(usage, dict):
+        tin = sum(v for k, v in usage.items() if k.endswith("input_tokens") and isinstance(v, int))
+        tout = usage.get("output_tokens")
+        if isinstance(tout, int):
+            parts.append(f"{tin} tokens de entrada, {tout} de salida")
+    if parts:
+        log.info("claude -p: %s", ", ".join(parts))
 
 
 def extract_json(text: str) -> dict:

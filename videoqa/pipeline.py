@@ -25,6 +25,7 @@ from videoqa.profiles import (brand_dir, client_of, glossary_words, jobs_root, l
                                merged_rules)
 from videoqa.local_judge import DEFAULTS as FALLBACK_DEFAULTS
 from videoqa.local_judge import apply_fallback, fallback_config, run_fallback_judge
+from videoqa.logs import VIDEO_LOG, video_log
 from videoqa.report import build_report
 from videoqa.sheet import SheetWriter, row_for
 from videoqa.stages.color import add_colors
@@ -109,6 +110,31 @@ def _prueba_respaldo(job: Job, video: Path, settings: Settings, rules: dict, p: 
 
 def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None = None,
                   modo: str = "completo", veredicto_text: str | None = None) -> Result:
+    job = Job(video, jobs_root(settings, client_of(video, settings)))
+    # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
+    # o si no hay estado previo. Reintentar el MISMO archivo reaprovecha probe/transcribe/
+    # frames/ocr, que son las etapas caras; si no, cada reintento volvía a correr Whisper.
+    reuse = job.matches_current_video()
+    if not reuse:
+        job.reset()
+    # Registro propio del video (registro.log): se añade en cada reintento y, al terminar,
+    # viaja con el reporte para que se pueda ver qué pasó sin buscar en el general.
+    t0 = time.monotonic()
+    with video_log(job.path(VIDEO_LOG)):
+        if reuse:
+            log.info("[%s] reintento del mismo archivo: se conservan las etapas cacheadas", job.name)
+        res = _process(job, video, settings, rules, runner, sheet, modo, veredicto_text)
+        log.info("[%s] fin: %s en %.0f s", job.name, res.status, time.monotonic() - t0)
+    if res.dest is not None:
+        try:
+            shutil.copy2(job.path(VIDEO_LOG), res.dest / VIDEO_LOG)
+        except OSError as e:
+            log.warning("[%s] no se pudo copiar %s al destino: %s", job.name, VIDEO_LOG, e)
+    return res
+
+
+def _process(job: Job, video: Path, settings: Settings, rules: dict, runner: Runner, sheet: SheetWriter | None,
+             modo: str, veredicto_text: str | None) -> Result:
     if modo == "prueba_respaldo":
         # Prueba del juez de respaldo: nada de Sheet (el tablero es del flujo real).
         sheet = SheetWriter(None, settings.jobs_dir / "sheet_pending.json")
@@ -118,14 +144,6 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     profile = load_profile(settings, client)
     rules = merged_rules(rules, profile.rule_overrides)
     row_name = f"{client} / {video.name}" if client else video.name
-    job = Job(video, jobs_root(settings, client))
-    # Solo se tira el caché si el job dir describe OTRO archivo (resubida del mismo nombre)
-    # o si no hay estado previo. Reintentar el MISMO archivo reaprovecha probe/transcribe/
-    # frames/ocr, que son las etapas caras; si no, cada reintento volvía a correr Whisper.
-    if not job.matches_current_video():
-        job.reset()
-    else:
-        log.info("[%s] reintento del mismo archivo: se conservan las etapas cacheadas", job.name)
     job.record_video()
     started = datetime.now()
     log.info("[%s] inicio", job.name)
@@ -207,6 +225,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
     respaldo_note = ""
     fallback = fallback_config(rules)
     try:
+        t_judge = time.monotonic()
         try:
             espera = load_wait_until() or 0.0
             if fallback and espera > time.time():
@@ -245,7 +264,8 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             judge_error = None
             respaldo_note = (f"Juez de respaldo ({fallback['modelo']}): Claude sin uso hasta las "
                              f"{retry_at:%H:%M}")
-            log.info("[%s] revisado con el juez de respaldo (%s)", job.name, fallback["modelo"])
+            log.info("[%s] revisado con el juez de respaldo (%s) en %.0f s", job.name, fallback["modelo"],
+                     time.monotonic() - t_judge)
         except Exception as e:  # noqa: BLE001 — cualquier fallo del juez (ClaudeError u otro) degrada igual
             log.error("[%s] %s", job.name, e)
             texto_error = str(e).lower()
@@ -271,6 +291,7 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             judge_error: str | None = None if opcional else str(e)
         else:
             clear_wait_state()  # Claude respondió: si había una espera por límite, ya pasó
+            log.info("[%s] juez: veredicto en %.0f s", job.name, time.monotonic() - t_judge)
             dismissed = {d["id"] for d in verdict["dismissed"]}
             findings = [f for f in code_findings if f.id not in dismissed] + verdict["findings"]
             status = decide(findings)

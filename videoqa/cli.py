@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import logging.handlers
 import os
 import shutil
 import sys
@@ -24,27 +23,12 @@ from videoqa.config import (
 )
 from videoqa.doctor_state import write_doctor_state, write_wait_state
 from videoqa.findings import Finding, load_findings, sort_findings
+from videoqa.logs import MAIN_LOG, VIDEO_LOG, setup_logging, support_bundle, tail
 from videoqa.pipeline import process_video
 from videoqa.profiles import JOBS_SUBDIR, brief_path, client_of, is_client_folder
 from videoqa.report import fmt_t
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
-
-
-def setup_logging() -> None:
-    log_dir = videoqa_home()
-    log_dir.mkdir(parents=True, exist_ok=True)
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    root = logging.getLogger("videoqa")
-    root.setLevel(logging.INFO)
-    for h in root.handlers[:]:
-        h.close()
-        root.removeHandler(h)
-    fh = logging.handlers.RotatingFileHandler(log_dir / "videoqa.log", maxBytes=5_000_000, backupCount=3)
-    fh.setFormatter(fmt)
-    sh = logging.StreamHandler(sys.stderr)
-    sh.setFormatter(fmt)
-    root.handlers = [fh, sh]
 
 
 def make_runner(settings: Settings, rules: dict) -> Runner:
@@ -292,8 +276,39 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def cmd_registro(args) -> int:
+    """Muestra el registro general o el de un video; con --paquete, lo deja en un .zip."""
+    job_dir = None
+    if args.video:
+        job_dir = _find_job(load_settings(), args.video)
+        if job_dir is None:
+            return 1
+    if args.paquete:
+        destino = Path(args.destino).expanduser() if args.destino else _default_bundle_dir()
+        print(f"PAQUETE {support_bundle(destino, job_dir)}")
+        return 0
+    path = job_dir / VIDEO_LOG if job_dir else videoqa_home() / MAIN_LOG
+    if not path.exists():
+        quien = f"el video {_job_label(job_dir)}" if job_dir else "el motor"
+        print(f"SIN_REGISTRO: todavía no hay registro de {quien}")
+        return 0
+    lineas = tail(path, args.lineas, problems_only=args.problemas)
+    print(f"REGISTRO {path} · {len(lineas)} línea(s){' (solo avisos y errores)' if args.problemas else ''}")
+    for line in lineas:
+        print(line)
+    return 0
+
+
+def _default_bundle_dir() -> Path:
+    desktop = Path.home() / "Desktop"
+    return desktop if desktop.is_dir() else videoqa_home()
+
+
 def main(argv: list[str] | None = None) -> int:
-    setup_logging()
+    argv = sys.argv[1:] if argv is None else argv
+    # Con `watch` en segundo plano (launchd) stderr va a un archivo que nunca rota y
+    # duplicaría videoqa.log: ahí solo se escribe el registro general.
+    setup_logging(console=not (argv[:1] == ["watch"] and not sys.stderr.isatty()))
     ap = argparse.ArgumentParser(prog="videoqa", description="Revisión automática de videos pre-publicación")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("init", help="crear config y carpetas de Drive")
@@ -334,6 +349,13 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_respaldo)
     p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
     p.set_defaults(fn=cmd_doctor)
+    p = sub.add_parser("registro", help="ver el registro (general o de un video) o empaquetarlo para soporte")
+    p.add_argument("video", nargs="?", help="nombre (o trozo) de un video revisado; sin él, el registro general")
+    p.add_argument("--lineas", type=int, default=40, help="cuántas líneas mostrar (0 = todas)")
+    p.add_argument("--problemas", action="store_true", help="solo avisos y errores")
+    p.add_argument("--paquete", action="store_true", help="crear un .zip con los registros para soporte")
+    p.add_argument("--destino", metavar="CARPETA", help="dónde dejar el .zip (por defecto, el Escritorio)")
+    p.set_defaults(fn=cmd_registro)
     args = ap.parse_args(argv)
     return args.fn(args)
 

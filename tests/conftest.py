@@ -16,7 +16,7 @@ def _videoqa_home(tmp_path_factory, monkeypatch):
     """Ningún test debe tocar el ~/.videoqa real del usuario que corre la suite.
 
     videoqa.config.videoqa_home() (usado por defaults de Settings.jobs_dir,
-    default_config_path() y cli.setup_logging()) lee VIDEOQA_HOME en cada
+    default_config_path() y logs.setup_logging()) lee VIDEOQA_HOME en cada
     llamada, así que basta con fijarla aquí para aislar toda la suite.
     """
     home = tmp_path_factory.mktemp("videoqa_home")

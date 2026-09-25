@@ -77,7 +77,8 @@ Reglas:
 - Si una carpeta está vacía, dilo en positivo ("No hay nada pendiente", "Todavía no hay
   aprobados").
 - Si el registro muestra errores repetidos, resúmelos en una frase y propón el siguiente paso.
-  Nunca muestres el traceback.
+  Nunca muestres el traceback. Si quiere más detalle o mandarlo a soporte, ofrécele
+  `/aura:registro` ("dime 'qué pasó con <video>'").
 - Si te preguntan por un video en concreto, dile que le abres su carpeta en Finder y hazlo.
 
 ## Si hay más de una carpeta

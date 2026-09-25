@@ -108,15 +108,34 @@ launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.videoqa.watcher.plist
 > por buena cualquier palabra. Corolario: la Mac debe estar encendida y con la sesión abierta
 > (basta con la pantalla bloqueada; no sirve cerrar sesión).
 
-Ver estado / logs:
+Ver estado:
 ```bash
 launchctl print gui/$UID/com.videoqa.watcher | head -20
-tail -f ~/.videoqa/videoqa.log
 ```
 Detener:
 ```bash
 launchctl bootout gui/$UID/com.videoqa.watcher
 ```
+
+## Registros (logs)
+
+| Dónde | Qué tiene |
+| --- | --- |
+| `~/.videoqa/videoqa.log` | Todo el motor. Rota a los 5 MB y guarda 3 anteriores (`.1`–`.3`). |
+| `registro.log` en cada job y en la carpeta entregada | Solo ese video: etapas con lo que tardó cada una, juez (duración, coste y tokens de `claude -p`), avisos y errores. Se añade en cada reintento. |
+| `state.json` en cada job | Estado y segundos de cada etapa. |
+| `~/.videoqa/launchd.err.log` | Solo lo que el watcher no pudo registrar él mismo (p. ej. no arrancó). En segundo plano ya no duplica `videoqa.log`. |
+
+```bash
+tail -f ~/.videoqa/videoqa.log                 # en vivo
+videoqa registro --problemas                   # solo avisos y errores (con su traceback)
+videoqa registro "<video>"                     # el registro de un video
+videoqa registro ["<video>"] --paquete         # .zip para soporte en el Escritorio (sin config ni tokens)
+VIDEOQA_LOG_LEVEL=DEBUG videoqa run <video>    # más detalle (DEBUG, INFO, WARNING…)
+```
+
+Para el watcher en segundo plano, añade `VIDEOQA_LOG_LEVEL` a `EnvironmentVariables` del plist.
+Desde Aura: `/aura:registro` ("¿qué pasó con el video X?").
 
 ## Regla del equipo
 Solo se publica lo que está en `03_Aprobado/`. Si un video cae en `02_Con_errores/`, el editor

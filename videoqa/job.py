@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -82,9 +83,11 @@ class Job:
             return False
         return st["video_size"] == fp["video_size"] and st["video_mtime"] == fp["video_mtime"]
 
-    def _mark(self, stage: str, status: str, error: str | None = None) -> None:
+    def _mark(self, stage: str, status: str, error: str | None = None, seconds: float | None = None) -> None:
         st = self.state()
         st["stages"][stage] = {"status": status, "at": datetime.now().isoformat(timespec="seconds")}
+        if seconds is not None:
+            st["stages"][stage]["seconds"] = round(seconds, 1)
         if error:
             st["stages"][stage]["error"] = error
         self.state_path.write_text(json.dumps(st, ensure_ascii=False, indent=2))
@@ -96,16 +99,21 @@ class Job:
             return json.loads(out.read_text())
         log.info("[%s] etapa %s: ejecutando", self.name, name)
         tmp = out.with_suffix(out.suffix + ".tmp")
+        t0 = time.monotonic()
         try:
             result = fn(self)
             tmp.write_text(json.dumps(result, ensure_ascii=False, indent=2))
             os.replace(tmp, out)
         except Exception as e:  # noqa: BLE001 — registramos y re-lanzamos
-            self._mark(name, "failed", f"{type(e).__name__}: {e}")
+            seconds = time.monotonic() - t0
+            log.warning("[%s] etapa %s: falló tras %.1f s", self.name, name, seconds)
+            self._mark(name, "failed", f"{type(e).__name__}: {e}", seconds=seconds)
             if tmp.exists():
                 tmp.unlink()
             raise
-        self._mark(name, "done")
+        seconds = time.monotonic() - t0
+        log.info("[%s] etapa %s: lista en %.1f s", self.name, name, seconds)
+        self._mark(name, "done", seconds=seconds)
         return result
 
     def reset(self) -> None:
