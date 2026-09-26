@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 
 from videoqa.checks.scene_text import is_scene_text
@@ -8,7 +9,25 @@ from videoqa.findings import Finding
 
 WORD_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+")
 
+# Glosario base empaquetado: palabras de redes, anglicismos y jerga que el diccionario
+# de macOS no reconoce y que NO son faltas. Se suma al glosario del equipo.
+BASE_GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "data" / "glosario_base.txt"
+
+# Terminaciones de plural que se prueban contra el glosario: "corillo" en la lista
+# también vale para "corillos". Nunca se recorta por debajo de 3 letras para no
+# convertir una falta corta en una palabra válida.
+_PLURALES = ("es", "s")
+_MIN_RAIZ = 3
+
 NSNOTFOUND = 0x7FFFFFFFFFFFFFFF
+
+
+def _sin_tildes(w: str) -> str:
+    """Quita los acentos para comparar "menu" con "menú": se descompone en NFD (la letra
+    y su tilde por separado) y se descarta todo lo que `unicodedata.combining` marca como
+    una marca de combinación."""
+    return "".join(c for c in unicodedata.normalize("NFD", w.lower()) if not unicodedata.combining(c))
+
 
 # Minúscula tras punto seguido de espacio. El lookbehind de dígito evita marcar
 # decimales ("3.5 euros"); los de punto/lookahead evitan los puntos suspensivos
@@ -25,44 +44,111 @@ _NON_WORDS_RE = re.compile(
 
 
 class MacSpellChecker:
-    """Corrector ortográfico nativo de macOS (NSSpellChecker) en español."""
+    """Corrector ortográfico nativo de macOS (NSSpellChecker).
 
-    def __init__(self, language: str = "es"):
+    Consulta varios idiomas: una palabra solo es un error si NINGUNO la reconoce.
+    Los rótulos de redes mezclan idiomas ("earnings", "wanna", "link") y con un solo
+    diccionario español esas palabras salían como faltas.
+    """
+
+    def __init__(self, languages: tuple[str, ...] = ("es",)):
         from AppKit import NSSpellChecker  # pyobjc, ya instalado vía ocrmac
         from Foundation import NSMakeRange
 
         self._range = NSMakeRange
         self._sc = NSSpellChecker.sharedSpellChecker()
-        self._sc.setLanguage_(language)
-        self._lang = language
+        self._langs = tuple(languages) or ("es",)
+        self._lang = self._langs[0]
+        self._sc.setLanguage_(self._lang)
 
-    def is_known(self, word: str) -> bool:
+    def _known_in(self, word: str, language: str) -> bool:
         # API con idioma explícito: `checkSpellingOfString:startingAt:` usa el idioma del
         # panel compartido (que otra app puede haber cambiado) y en la práctica devolvía
         # "conocido" para casi todo. Con esta variante el idioma va en la llamada.
         res = self._sc.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount_(
-            word, 0, self._lang, False, 0, None)
+            word, 0, language, False, 0, None)
         r = res[0] if isinstance(res, tuple) else res
         return getattr(r, "location", r) == NSNOTFOUND  # NSNotFound = sin error = palabra conocida
+
+    def is_known(self, word: str) -> bool:
+        if self._known_in(word, self._langs[0]):
+            return True
+        for lang in self._langs[1:]:
+            if self._known_in(word, lang):
+                # El idioma principal no la conoce pero uno secundario sí: antes de
+                # aceptarla como anglicismo ("menu", "cafe"...) hay que descartar que sea
+                # una falta de tilde disfrazada de palabra extranjera. Si el corrector del
+                # idioma principal sugiere una versión con acento que es la MISMA palabra
+                # sin tildes, es una falta real ("menú"), no un préstamo válido.
+                if self._is_accent_mistake(word):
+                    return False
+                return True
+        return False
+
+    def _guesses(self, word: str, language: str) -> list[str]:
+        guesses = self._sc.guessesForWordRange_inString_language_inSpellDocumentWithTag_(
+            self._range(0, len(word)), word, language, 0)
+        return [str(g) for g in guesses] if guesses else []
+
+    def _is_accent_mistake(self, word: str) -> bool:
+        objetivo = _sin_tildes(word)
+        for sugerencia in self._guesses(word, self._langs[0]):
+            if sugerencia.lower() != word.lower() and _sin_tildes(sugerencia) == objetivo:
+                return True
+        return False
+
+    def is_known_primary(self, word: str) -> bool:
+        """Solo el idioma principal (`self._langs[0]`).
+
+        Para el detector de "palabras pegadas" (`_Vocab.split`): un rótulo con espacios
+        perdidos por el OCR está pegado en UN idioma, el del video. Un fragmento que solo
+        se explica por un idioma secundario ("prob" en inglés dentro de "Aprobecha", typo
+        de "Aprovecha") no es una palabra pegada real, es una excusa para no marcar un
+        error de ortografía.
+        """
+        return self._known_in(word, self._langs[0])
 
     def unknown(self, words) -> set[str]:
         return {w for w in words if not self.is_known(w)}
 
     def correction(self, word: str) -> str | None:
-        guesses = self._sc.guessesForWordRange_inString_language_inSpellDocumentWithTag_(
-            self._range(0, len(word)), word, self._lang, 0)
-        return str(guesses[0]) if guesses else None
+        guesses = self._guesses(word, self._lang)
+        return guesses[0] if guesses else None
 
 
-def load_glossary(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
+def _read_words(path: Path) -> set[str]:
     words = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return words
+    for line in lines:
         line = line.strip()
         if line and not line.startswith("#"):
             words.add(line.lower())
     return words
+
+
+def load_base_glossary() -> set[str]:
+    return _read_words(BASE_GLOSSARY_PATH)
+
+
+def load_glossary(path: Path, incluir_base: bool = True) -> set[str]:
+    words = _read_words(path)
+    return words | load_base_glossary() if incluir_base else words
+
+
+def in_glossary(word: str, glossary: set[str]) -> bool:
+    """La palabra está en el glosario, o es su plural (o su singular)."""
+    w = word.lower()
+    if w in glossary:
+        return True
+    for suf in _PLURALES:
+        if w.endswith(suf) and len(w) - len(suf) >= _MIN_RAIZ and w[: -len(suf)] in glossary:
+            return True
+        if f"{w}{suf}" in glossary:
+            return True
+    return False
 
 
 def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
@@ -72,7 +158,7 @@ def unknown_words(text: str, checker, glossary: set[str]) -> list[str]:
     # `glosario.txt`.
     out = []
     for w in WORD_RE.findall(_NON_WORDS_RE.sub(" ", text)):
-        if len(w) < 3 or w.lower() in glossary:
+        if len(w) < 3 or in_glossary(w, glossary):
             continue
         if checker.unknown([w]):
             out.append(w)
@@ -109,10 +195,16 @@ class _Vocab:
     def known(self, part: str) -> bool:
         if len(part) <= 2:
             return part in _SHORT_WORDS
-        if part in self.glossary or part in self.spoken:
+        if in_glossary(part, self.glossary) or part in self.spoken:
             return True
         if part not in self._known:
-            self._known[part] = not self.checker.unknown([part])
+            # Solo el idioma principal: un rótulo pegado por el OCR está pegado en UN
+            # idioma, y un fragmento que solo cuela por un idioma secundario ("prob" en
+            # inglés dentro de "Aprobecha") es casi siempre una excusa para un typo real,
+            # no una palabra pegada. Backends de terceros sin `is_known_primary` siguen
+            # funcionando con el comportamiento anterior (todos los idiomas).
+            comprobar = getattr(self.checker, "is_known_primary", None)
+            self._known[part] = comprobar(part) if comprobar else not self.checker.unknown([part])
         return self._known[part]
 
     def split(self, word: str) -> list[str] | None:

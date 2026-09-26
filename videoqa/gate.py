@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 from videoqa.config import Settings
@@ -23,6 +24,25 @@ def _check_safe_name(job: Job) -> None:
     check_safe_stem(job.name, job.video.name)
 
 
+def _keep_previous(dest: Path, base: Path) -> Path:
+    """Aparta una entrega anterior con el mismo nombre en `_anteriores/`.
+
+    El flujo normal es que el editor corrija y resuba el video con el mismo nombre; la
+    versión anterior (video + reporte + evidencia) ya fue revisada y no se borra nunca:
+    puede estar publicada o servir para comparar qué cambió.
+    """
+    keep = base / "_anteriores"
+    keep.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    target = keep / f"{dest.name}_{stamp}"
+    n = 1
+    while target.exists():
+        n += 1
+        target = keep / f"{dest.name}_{stamp}_{n}"
+    shutil.move(str(dest), target)
+    return target
+
+
 def deliver(job: Job, settings: Settings, status: str, client: str | None = None) -> Path:
     _check_safe_name(job)
     base = settings.aprobado if status == "approved" else settings.con_errores
@@ -35,7 +55,7 @@ def deliver(job: Job, settings: Settings, status: str, client: str | None = None
     if dest.resolve().parent != base.resolve():
         raise ValueError(f"nombre de video inseguro: {job.video.name!r}")
     if dest.exists():
-        shutil.rmtree(dest)
+        _keep_previous(dest, base)
     dest.mkdir(parents=True)
     # Primero los artefactos, el video AL FINAL: si copiar reporte/guion/evidencia falla,
     # el video sigue en 01_Entrada/ y el watcher puede reintentar en vez de dejarlo en

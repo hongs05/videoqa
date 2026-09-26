@@ -223,3 +223,63 @@ def test_doctor_falla_ante_un_error_inesperado(monkeypatch, capsys):
     out = capsys.readouterr().out.strip()
     assert out.startswith("CRITERIO SIN SESIÓN · no pude comprobarlo")
     assert json.loads((videoqa_home() / "doctor.json").read_text())["ok"] is False
+
+
+def test_glosario_lista_candidatas(tmp_path, monkeypatch, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    capsys.readouterr()  # descarta la salida de `init`; solo interesa la de `glosario`
+    jobs = videoqa_home() / "jobs" / "v1"
+    jobs.mkdir(parents=True)
+    # "kasa" (y no "klook"): "klook" ya viene en el glosario base empaquetado (Task 2),
+    # así que candidatas() lo descartaría y CANDIDATAS daría 0. Este test usa el corrector
+    # REAL de macOS (no uno de mentira): depende de que el diccionario del sistema no
+    # conozca "kasa" como palabra válida, en español ni en inglés.
+    (jobs / "findings_code.json").write_text(json.dumps(
+        [{"check": "spelling_unknown_word", "title": "Posible error ortográfico: kasa"}]))
+    assert main(["glosario"]) == 0
+    out = capsys.readouterr().out
+    assert out.splitlines()[0] == "CANDIDATAS 1"
+    assert "kasa" in out
+
+
+def test_glosario_agrega_al_archivo_del_equipo(tmp_path, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    # "kasa" (y no "klook"/"canva"): esas ya vienen en el glosario base empaquetado, así
+    # que --agregar las descartaría (ver test_glosario_agregar_descarta_las_de_fabrica).
+    assert main(["glosario", "--agregar", "Kasa, molinrocha"]) == 0
+    assert "AGREGADAS: kasa, molinrocha" in capsys.readouterr().out
+    assert "kasa" in (drive / "_config" / "glosario.txt").read_text(encoding="utf-8")
+
+
+def test_glosario_agregar_sin_novedades(tmp_path, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    main(["glosario", "--agregar", "kasa"])
+    capsys.readouterr()
+    main(["glosario", "--agregar", "kasa"])
+    assert "AGREGADAS: ninguna" in capsys.readouterr().out
+
+
+def test_glosario_agregar_descarta_las_de_fabrica(tmp_path, capsys):
+    """"canva" y "klook" ya vienen en el glosario base empaquetado: --agregar no debe
+    duplicarlas en el archivo del equipo, y debe avisar por separado cuáles descartó."""
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    capsys.readouterr()
+    assert main(["glosario", "--agregar", "canva, klook, kasa"]) == 0
+    out = capsys.readouterr().out
+    assert "AGREGADAS: kasa" in out
+    assert "YA_DE_FABRICA: canva, klook" in out
+    lineas = (drive / "_config" / "glosario.txt").read_text(encoding="utf-8").splitlines()
+    assert "kasa" in lineas
+    assert "canva" not in lineas and "klook" not in lineas
+
+
+def test_glosario_agregar_sin_palabras_de_fabrica_no_imprime_la_linea(tmp_path, capsys):
+    drive = tmp_path / "drive"
+    main(["init", "--drive-root", str(drive)])
+    capsys.readouterr()
+    main(["glosario", "--agregar", "kasa"])
+    assert "YA_DE_FABRICA" not in capsys.readouterr().out

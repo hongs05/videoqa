@@ -26,7 +26,12 @@ def register_transcriber(fn: Callable) -> None:
 
 
 def register_speller(fn: Callable) -> None:
-    """fn() -> objeto con is_known / unknown / correction"""
+    """fn(languages: tuple[str, ...]) -> objeto con is_known / unknown / correction.
+
+    `videoqa/pipeline.py` construye el corrector pasando `settings.idiomas`; una fábrica
+    que no acepte argumentos también funciona (el punto de llamada cae a `fn()` si
+    `fn(settings.idiomas)` da `TypeError`).
+    """
     global _speller
     _speller = fn
 

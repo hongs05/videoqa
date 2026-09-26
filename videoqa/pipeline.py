@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from videoqa import backends
 from videoqa.brand import load_brand
 from videoqa.checks.brand_color import check_brand_colors
-from videoqa.checks.spelling import check_spelling
+from videoqa.checks.spelling import BASE_GLOSSARY_PATH, check_spelling, load_base_glossary
 from videoqa.checks.technical import check_technical
 from videoqa.checks.timing import check_timing
 from videoqa.claude_runner import Runner, UsageLimitError
@@ -58,6 +59,21 @@ def _rel(settings: Settings, path: Path | None) -> str:
         return str(path.relative_to(settings.drive_root))
     except ValueError:
         return str(path)
+
+
+def _glossary_text_for_judge(team_text: str) -> str:
+    """El texto de glosario que se le enseña al juez.
+
+    El check de código acepta "reel", "canva" o "chévere" porque suma el glosario base
+    empaquetado al del perfil (general + cliente); si el juez solo viera el del perfil,
+    podría marcar como error una palabra que el código ya dio por buena y las dos mitades
+    de la revisión se contradirían. Se le da el mismo vocabulario: el texto del perfil
+    (tal cual, con sus propios comentarios) seguido del glosario base.
+    """
+    partes = [team_text.rstrip("\n")] if team_text.strip() else []
+    partes.append("# --- Glosario base de VideoQA (viene empaquetado en el programa) ---")
+    partes.append(BASE_GLOSSARY_PATH.read_text(encoding="utf-8").rstrip("\n"))
+    return "\n".join(partes) + "\n"
 
 
 PRUEBAS_RESPALDO = "04_Pruebas_respaldo"
@@ -152,13 +168,18 @@ def process_video(video: Path, settings: Settings, rules: dict, runner: Runner, 
             job.path("ocr_color.json").unlink(missing_ok=True)
         ocr = job.run_stage("color", "ocr_color.json", lambda j: add_colors(j, ocr))
 
-        glossary_text = profile.glossary_text  # general + el del cliente
-        glossary = glossary_words(glossary_text)
+        glossary_text = _glossary_text_for_judge(profile.glossary_text)  # general + cliente + base
+        glossary = glossary_words(profile.glossary_text) | load_base_glossary()
         apps = ocr["appearances"]
         # La zona segura de la UI (banda inferior / franja derecha) solo existe en el
         # feed vertical; en 16:9 el check no aplica.
         vertical = int(p["height"]) > int(p["width"])
-        code_findings = (check_spelling(apps, glossary, rules, segments=transcript["segments"])
+        try:
+            checker = backends.get_speller()(settings.idiomas)
+        except TypeError as e:  # backend de terceros sin soporte de idiomas
+            log.debug("get_speller() no acepta idiomas, uso el constructor sin argumentos: %s", e)
+            checker = backends.get_speller()()
+        code_findings = (check_spelling(apps, glossary, rules, checker=checker, segments=transcript["segments"])
                          + check_brand_colors(apps, brand, rules)
                          + check_timing(apps, transcript["segments"], rules, vertical=vertical)
                          + check_technical(p, technical, rules))

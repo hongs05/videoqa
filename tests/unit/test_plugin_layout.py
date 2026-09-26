@@ -123,3 +123,14 @@ def test_hook_de_sesion() -> None:
     assert any("check-engine.sh" in c for c in comandos)
     script = ROOT / "plugins" / "aura" / "scripts" / "check-engine.sh"
     assert script.exists() and script.stat().st_mode & 0o111, f"{script} tiene que ser ejecutable"
+
+
+def test_actualizar_sabe_enlazar_un_motor_sin_enlace() -> None:
+    # Un motor copiado a mano no tiene de dónde traer versiones nuevas: sin este
+    # paso, `/aura:actualizar` se queda sin salida y la persona no se entera de
+    # que su motor lleva meses parado.
+    script = ROOT / "plugins" / "aura" / "scripts" / "enlazar-motor.sh"
+    assert script.exists() and script.stat().st_mode & 0o111, f"{script} tiene que ser ejecutable"
+    for nombre in ("actualizar", "instalar"):
+        texto = (SKILLS_DIR / nombre / "SKILL.md").read_text()
+        assert "enlazar-motor.sh" in texto, f"{nombre}: tiene que enlazar el motor"

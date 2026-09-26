@@ -58,7 +58,7 @@ Abre Claude (la aplicación, pestaña Code) y escríbele. Hay siete comandos:
 | `/aura:instalar` | Configurarlo todo la primera vez. |
 | `/aura:revisar` | Revisar los videos pendientes. |
 | `/aura:estado` | Ver qué hay pendiente y cómo va todo. |
-| `/aura:ajustar` | Cambiar qué se marca como error. |
+| `/aura:ajustar` | Cambiar qué se marca como error y llenar el glosario de palabras válidas. |
 | `/aura:activar-automatico` | Que revise solo, sin pedírselo. |
 | `/aura:actualizar` | Ponerlo al día cuando haya versión nueva. |
 | `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |

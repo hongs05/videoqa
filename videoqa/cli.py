@@ -10,8 +10,9 @@ from pathlib import Path
 
 import yaml
 
-from videoqa import learning
+from videoqa import backends, learning
 from videoqa.brand import build_brand
+from videoqa.checks.spelling import in_glossary, load_base_glossary, load_glossary
 from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, run_claude
 from videoqa.config import (
     Settings,
@@ -24,11 +25,14 @@ from videoqa.config import (
 )
 from videoqa.doctor_state import write_doctor_state, write_wait_state
 from videoqa.findings import Finding, load_findings, sort_findings
+from videoqa.glosario import agregar, candidatas
 from videoqa.pipeline import process_video
 from videoqa.profiles import JOBS_SUBDIR, brief_path, client_of, is_client_folder
 from videoqa.report import fmt_t
 from videoqa.sheet import SheetClient, SheetWriter
 from videoqa.watcher import watch
+
+log = logging.getLogger("videoqa")
 
 
 def setup_logging() -> None:
@@ -259,6 +263,34 @@ def cmd_corregir(args) -> int:
     return 0
 
 
+def cmd_glosario(args) -> int:
+    """Propone palabras ya vistas en los videos revisados, o las añade al glosario."""
+    settings = load_settings()
+    ruta = settings.config_dir / "glosario.txt"
+    if args.agregar:
+        palabras = [w.strip().lower() for w in args.agregar.split(",") if w.strip()]
+        # Lo que el glosario de fábrica ya acepta no hace falta duplicarlo en el archivo
+        # del equipo: se descarta aquí y se avisa aparte, para que quede claro por qué no
+        # sale en "AGREGADAS" (agregar() solo dedupea contra el archivo del equipo).
+        de_fabrica = [w for w in palabras if in_glossary(w, load_base_glossary())]
+        nuevas = agregar(ruta, [w for w in palabras if w not in de_fabrica])
+        print(f"AGREGADAS: {', '.join(nuevas) if nuevas else 'ninguna'}")
+        if de_fabrica:
+            print(f"YA_DE_FABRICA: {', '.join(de_fabrica)}")
+        return 0
+    glossary = load_glossary(ruta)
+    try:
+        checker = backends.get_speller()(settings.idiomas)
+    except TypeError as e:  # backend de terceros sin soporte de idiomas
+        log.debug("get_speller() no acepta idiomas, uso el constructor sin argumentos: %s", e)
+        checker = backends.get_speller()()
+    filas = candidatas(settings.jobs_dir, glossary, checker=checker)
+    print(f"CANDIDATAS {len(filas)}")
+    for palabra, veces, videos in filas:
+        print(f"{palabra}\t{veces}\t{videos}")
+    return 0
+
+
 def cmd_respaldo(args) -> int:
     """Una línea: ¿el juez de respaldo (Ollama) responde y ve imágenes?"""
     import tempfile
@@ -334,6 +366,9 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_respaldo)
     p = sub.add_parser("doctor", help="comprobar que Claude puede dar criterio")
     p.set_defaults(fn=cmd_doctor)
+    p = sub.add_parser("glosario", help="proponer palabras para el glosario del equipo")
+    p.add_argument("--agregar", metavar="PALABRAS", help="añadir estas palabras (separadas por comas)")
+    p.set_defaults(fn=cmd_glosario)
     args = ap.parse_args(argv)
     return args.fn(args)
 
