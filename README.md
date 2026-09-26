@@ -17,7 +17,8 @@ Code con el que lo maneja una persona no técnica (`aura`).
 4. **Criterio** — Claude juzga los casos que el código no puede decidir (guion ↔ pantalla,
    bloopers) con el skill `.claude/skills/revisor-video/SKILL.md`.
 5. **Salida** — el video se mueve a `02_Con_errores` o `03_Aprobado` con `reporte.md`,
-   `guion_real.md` y `evidencia/`; opcionalmente se anota en un Google Sheet.
+   `guion_real.md` y `evidencia/`; opcionalmente se anota en un Google Sheet. Nunca se borra
+   un video: si ya había una entrega con el mismo nombre, se aparta en `_anteriores/`.
 
 ## Por dónde empezar
 

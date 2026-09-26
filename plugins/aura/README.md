@@ -58,6 +58,7 @@ Dentro de la carpeta de Drive que elijas:
 - **01_Entrada** — aquí subes los videos. Es lo único que tocas.
 - **02_Con_errores** 🔴 — hay algo que corregir antes de publicar.
 - **03_Aprobado** 🟢 — listo. Solo de aquí se publica.
+- **_anteriores** (dentro de las dos anteriores) — versiones viejas de un video que resubiste con el mismo nombre. Nada se borra.
 
 ## Actualizar
 

@@ -121,6 +121,8 @@ launchctl bootout gui/$UID/com.videoqa.watcher
 ## Regla del equipo
 Solo se publica lo que está en `03_Aprobado/`. Si un video cae en `02_Con_errores/`, el editor
 corrige, vuelve a subir el archivo a `01_Entrada/` con el mismo nombre y espera el nuevo reporte.
+La entrega anterior (video, reporte y evidencia) no se borra: queda en
+`02_Con_errores/_anteriores/` o `03_Aprobado/_anteriores/` con fecha y hora en el nombre.
 
 ## Ajustar severidades
 Edita `~/videoqa/reglas.yaml` (por ejemplo, `silence: blocker`) y reinicia el watcher. Para cambiar el criterio

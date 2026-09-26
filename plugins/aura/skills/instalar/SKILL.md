@@ -1,7 +1,7 @@
 ---
 description: Deja VideoQA listo la primera vez - instala el motor, elige la carpeta de videos de Drive, carga la guía de marca y hace una prueba. Úsalo cuando la persona diga "instalar", "configurar" o "empezar".
 disable-model-invocation: true
-allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(brew install:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(uname:*) Bash(df:*) Bash(grep:*) Bash(echo:*) Bash(open:*) Bash(cat:*) Bash(curl:*) Bash(rsync:*) Read Edit Write
+allowed-tools: Bash(uv run --project ~/videoqa videoqa:*) Bash(uv sync:*) Bash(uv python:*) Bash(git clone:*) Bash(git -C:*) Bash(bash:*) Bash(brew install:*) Bash(osascript:*) Bash(cp:*) Bash(mkdir:*) Bash(sysctl:*) Bash(command -v:*) Bash(uname:*) Bash(df:*) Bash(grep:*) Bash(echo:*) Bash(open:*) Bash(cat:*) Bash(curl:*) Bash(rsync:*) Read Edit Write
 ---
 
 # Instalar VideoQA (primera vez)
@@ -82,8 +82,23 @@ git -C ~/videoqa pull --ff-only
 ```
 
 Si la persona te dice que tiene el motor en una carpeta suya (por ejemplo una copia que le
-pasaron en un disco), pídele la ruta y cópiala con `rsync -a --exclude .venv --exclude .git
-"<ruta>/" ~/videoqa/` en vez de clonar. Puede que te pida permiso una vez; es normal.
+pasaron en un disco), pídele la ruta y cópiala en vez de clonar. Puede que te pida permiso una
+vez; es normal:
+
+```bash
+rsync -a --exclude .venv --exclude .git "<ruta>/" ~/videoqa/
+```
+
+**Una copia así no está enlazada con internet**, así que nunca podría recibir versiones nuevas.
+Déjala enlazada ahora mismo, siempre, tanto si copiaste como si el `pull` de arriba falló:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/enlazar-motor.sh"
+```
+
+Si responde `sin-internet`, sigue con la instalación usando lo que hay y avísale al final: "El
+motor se quedó con la versión de la copia; cuando tengas internet dime «actualiza» y lo pongo al
+día." No lo menciones si salió bien.
 
 Luego prepara Python y las librerías. Avisa que esto tarda un par de minutos:
 
