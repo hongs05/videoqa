@@ -21,12 +21,12 @@ def test_decide():
 def setup(tmp_path):
     drive = tmp_path / "drive"
     s = Settings(drive_root=drive, jobs_dir=tmp_path / "jobs")
-    s.entrada.mkdir(parents=True)
+    s.entrada.mkdir(parents=True, exist_ok=True)
     video = s.entrada / "promo.mp4"; video.write_bytes(b"video")
     job = Job(video, s.jobs_dir)
     job.path("reporte.md").write_text("# r")
     job.path("guion_real.md").write_text("g")
-    (job.dir / "evidencia").mkdir(); job.path("evidencia/01_0m01s.jpg").write_bytes(b"jpg")
+    (job.dir / "evidencia").mkdir(exist_ok=True); job.path("evidencia/01_0m01s.jpg").write_bytes(b"jpg")
     return s, job, video
 
 
@@ -45,11 +45,27 @@ def test_deliver_rejected_and_error_go_to_con_errores(tmp_path):
     assert deliver(job2, s2, "error").parent == s2.con_errores
 
 
-def test_deliver_overwrites_existing_destination(tmp_path):
+def test_deliver_keeps_previous_version_when_destination_exists(tmp_path):
+    """El editor resube el video corregido con el mismo nombre: la entrega anterior
+    (video + reporte) no se borra, se aparta en `_anteriores/`."""
     s, job, _ = setup(tmp_path)
-    old = s.aprobado / "promo"; old.mkdir(parents=True); (old / "viejo.txt").write_text("x")
+    old = s.aprobado / "promo"; old.mkdir(parents=True)
+    (old / "promo.mp4").write_bytes(b"v1"); (old / "reporte.md").write_text("viejo")
     deliver(job, s, "approved")
-    assert not (old / "viejo.txt").exists() and (old / "promo.mp4").exists()
+    assert (old / "promo.mp4").read_bytes() == b"video"
+    guardadas = list((s.aprobado / "_anteriores").iterdir())
+    assert len(guardadas) == 1 and guardadas[0].name.startswith("promo_")
+    assert (guardadas[0] / "promo.mp4").read_bytes() == b"v1"
+    assert (guardadas[0] / "reporte.md").read_text() == "viejo"
+
+
+def test_deliver_keeps_every_previous_version(tmp_path):
+    s, job, _ = setup(tmp_path)
+    old = s.aprobado / "promo"; old.mkdir(parents=True); (old / "promo.mp4").write_bytes(b"v1")
+    deliver(job, s, "approved")
+    s2, job2, _ = setup(tmp_path)  # tercera subida con el mismo nombre
+    deliver(job2, s2, "approved")
+    assert len(list((s.aprobado / "_anteriores").iterdir())) == 2
 
 
 def test_deliver_rejects_unsafe_name_without_deleting_anything(tmp_path):
