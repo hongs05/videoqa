@@ -67,7 +67,7 @@ def load_corrections(config_dir: Path) -> list[dict]:
 
 
 def add_correction(config_dir: Path, *, tipo: str, video: str, motivo: str, finding: dict | None = None,
-                   segundo: float | None = None, now: datetime | None = None) -> dict:
+                   segundo: float | None = None, now: datetime | None = None, cliente: str | None = None) -> dict:
     """Guarda una corrección y la devuelve. `finding` es el hallazgo corregido (falso positivo)."""
     if tipo not in KINDS:
         raise ValueError(f"tipo de corrección desconocido: {tipo}")
@@ -76,6 +76,8 @@ def add_correction(config_dir: Path, *, tipo: str, video: str, motivo: str, find
         raise ValueError("la corrección necesita un motivo")
     entry: dict = {"fecha": (now or datetime.now()).isoformat(timespec="seconds"), "tipo": tipo,
                    "video": video, "motivo": motivo}
+    if cliente:
+        entry["cliente"] = cliente  # sin cliente = vale para todos
     if finding:
         entry.update({"check": finding.get("check", ""), "categoria": finding.get("type", ""),
                       "titulo": finding.get("title", ""), "detalle": finding.get("detail", ""),

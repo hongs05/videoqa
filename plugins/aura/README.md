@@ -37,9 +37,11 @@ claude plugin marketplace add hongs05/videoqa && claude plugin install aura@vide
 | `/aura:instalar` | Deja todo configurado la primera vez: motor, carpeta de Drive, guía de marca y prueba. |
 | `/aura:revisar` | Revisa los videos pendientes (o el que le digas) y te explica qué corregir y en qué segundo. |
 | `/aura:estado` | Te dice qué hay pendiente, cómo quedaron los últimos y si la revisión automática está encendida. |
+| `/aura:cliente` | Crea o cambia el perfil de un cliente (marca, tono, lo prohibido, lo obligatorio, qué bloquea) y el brief de cada pieza. |
 | `/aura:corregir` | Le enseñas qué no era error (o qué se le pasó) y lo aplica en los próximos videos, en casos parecidos. |
 | `/aura:ajustar` | Añade palabras que no debe marcar como error y cambia qué problemas bloquean la publicación. |
 | `/aura:activar-automatico` | Enciende (o apaga) la revisión automática de todo lo que subas a `01_Entrada`. |
+| `/aura:respaldo` | Instala y enciende un juez gratuito en la Mac que revisa cuando Claude se queda sin uso. |
 | `/aura:actualizar` | Pone el motor y los comandos al día, y te cuenta qué cambió. |
 | `/aura:calendario` | Arma el calendario del mes en Excel (desde la estrategia o las cantidades que le digas) o revisa uno contra la estrategia. |
 | `/aura:sesion` | Arreglar la sesión de Claude cuando los videos salen pendientes. |
@@ -50,6 +52,14 @@ automática». Aura entiende igual.
 
 Al abrir cada sesión, Aura te saluda con una línea de estado: si el motor está instalado, cuántos
 videos hay esperando y si la revisión automática está encendida.
+
+## Perfiles por cliente
+
+Si subes un video a `01_Entrada/<Cliente>/` (por ejemplo `01_Entrada/Sushi CD/reel3.mp4`), se
+revisa con el perfil de ese cliente: su marca, su tono, lo que no puede salir nunca, lo que debe
+salir siempre y qué es grave para él. Lo creas hablando con `/aura:cliente`. Si pones al lado un
+`reel3.txt` con el brief (objetivo, guion, CTA), la revisión también comprueba que el video
+cumpla lo planeado. Los resultados se ordenan igual: `02_Con_errores/<Cliente>/…`.
 
 ## Las tres carpetas
 

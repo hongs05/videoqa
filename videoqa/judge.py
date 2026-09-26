@@ -11,6 +11,7 @@ from videoqa.claude_runner import ClaudeError, Runner, UsageLimitError, extract_
 from videoqa.config import SKILL_PATH
 from videoqa.findings import SEVERITIES, SEVERITY_ORDER, TYPES, Finding
 from videoqa.job import Job
+from videoqa.judge_data import render
 from videoqa.learning import for_judge, relevant
 
 log = logging.getLogger("videoqa")
@@ -87,7 +88,7 @@ def select_frames(frames: list[dict], appearances: list[dict], code_findings: li
 
 def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                    code_findings: list[Finding], frames: list[dict], rules: dict,
-                   corrections: list[dict] | None = None) -> dict:
+                   corrections: list[dict] | None = None, context: dict | None = None) -> dict:
     inp = job.path("judge_input")
     shutil.rmtree(inp, ignore_errors=True)
     inp.mkdir()
@@ -98,10 +99,11 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
         "technical.json": technical,
         "findings_code.json": [f.to_dict() for f in code_findings],
     }
+    chosen_corrections: list[dict] = []
     if corrections:
         # Solo las más parecidas a este video: todas juntas gastarían uso de Claude de más.
-        files["aprendizaje.json"] = for_judge(relevant(corrections, code_findings, ocr.get("appearances", []),
-                                                        transcript))
+        chosen_corrections = for_judge(relevant(corrections, code_findings, ocr.get("appearances", []), transcript))
+        files["aprendizaje.json"] = chosen_corrections
     for name, data in files.items():
         (inp / name).write_text(json.dumps(data, ensure_ascii=False, indent=2))
     (inp / "glosario.txt").write_text(glossary_text)
@@ -113,6 +115,7 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
     by_file = {f["file"]: f["t"] for f in frames}
     selected = select_frames(frames, ocr.get("appearances", []), code_findings, int(rules["claude"]["max_frames"]))
     manifest_frames = []
+    photo_of: dict[str, str] = {}
     for i, rel in enumerate(selected):
         t = by_file[rel]
         img = Image.open(job.path(rel)).convert("RGB")
@@ -121,15 +124,32 @@ def prepare_inputs(job: Job, brand: dict, glossary_text: str, transcript: dict, 
         name = f"claude_frames/{i:02d}_{t:06.1f}s.jpg"
         img.save(job.path(name), quality=85)
         manifest_frames.append({"file": name, "t": t})
-    return {"frames": manifest_frames, "inputs": [f"judge_input/{n}" for n in [*files, "glosario.txt"]]}
+        photo_of[rel] = name
+    # Los JSON de judge_input/ se quedan como registro para depurar; al juez le llega esto,
+    # en texto compacto dentro del propio prompt.
+    data = render(brand, glossary_text, transcript, ocr.get("appearances", []), technical, code_findings, rules,
+                  photo_of, chosen_corrections, context)
+    return {"frames": manifest_frames, "inputs": [f"judge_input/{n}" for n in [*files, "glosario.txt"]],
+            "data": data}
 
 
-def build_prompt(skill_text: str, manifest: dict, duration: float) -> str:
+def build_prompt(skill_text: str, manifest: dict, duration: float, attached: bool = False) -> str:
     frame_lines = "\n".join(f"- {f['file']}  (t = {f['t']:.1f} s)" for f in manifest["frames"])
-    input_lines = "\n".join(f"- {p}" for p in manifest["inputs"])
+    if "data" not in manifest:  # manifiesto de versiones anteriores: datos en archivos
+        input_lines = "\n".join(f"- {p}" for p in manifest["inputs"])
+        return (f"{skill_text}\n\n---\n\n# Trabajo actual\n\nDuración del video: {duration:.1f} s.\n\n"
+                f"Archivos de entrada (léelos todos con Read):\n{input_lines}\n\n"
+                f"Frames clave (léelos todos con Read):\n{frame_lines}\n\n"
+                "Responde solo con el JSON del veredicto.")
+    if attached:
+        frames_intro = ("Frames clave — ya van ADJUNTOS a este mensaje como imágenes, en este mismo orden "
+                        "(no hay que abrir nada; en `frame` usa estos nombres):")
+    else:
+        frames_intro = ("Frames clave — ábrelos TODOS con Read en una sola tanda (todas las llamadas a la vez, "
+                        "en tu primera respuesta):")
     return (f"{skill_text}\n\n---\n\n# Trabajo actual\n\nDuración del video: {duration:.1f} s.\n\n"
-            f"Archivos de entrada (léelos todos con Read):\n{input_lines}\n\n"
-            f"Frames clave (léelos todos con Read):\n{frame_lines}\n\n"
+            f"{frames_intro}\n{frame_lines}\n\n"
+            f"{manifest['data']}\n\n---\n\n"
             "Responde solo con el JSON del veredicto.")
 
 
@@ -270,7 +290,7 @@ def parse_verdict(text: str, require_guion: bool = True) -> dict:
 def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
                   code_findings: list[Finding], frames: list[dict], rules: dict,
                   skill_path: Path = SKILL_PATH, duration: float | None = None,
-                  corrections: list[dict] | None = None) -> str:
+                  corrections: list[dict] | None = None, context: dict | None = None) -> str:
     """Deja en el job dir todo lo que el juez necesita y devuelve el prompt.
 
     Lo usa `run_judge` (juez por `claude -p`) y también `videoqa run --hasta-juez`,
@@ -278,7 +298,7 @@ def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, o
     """
     try:
         manifest = prepare_inputs(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
-                                  corrections=corrections)
+                                  corrections=corrections, context=context)
         skill_text = skill_path.read_text(encoding="utf-8")
     except Exception as e:  # noqa: BLE001 — cualquier fallo aquí es fatal para el juez
         raise JudgeError(f"no se pudieron preparar las entradas del juez: {e}") from e
@@ -290,38 +310,27 @@ def prepare_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, o
     return prompt
 
 
-def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
-              code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
-              skill_path: Path = SKILL_PATH, duration: float | None = None,
-              corrections: list[dict] | None = None) -> dict:
-    base_prompt = prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
-                                skill_path=skill_path, duration=duration, corrections=corrections)
-    manifest = json.loads(job.path("judge_manifest.json").read_text())
-    # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.
-    require_guion = bool(transcript.get("segments"))
-    # Artefactos de la corrida anterior: si el juez falla ahora, un `guion_real.md` o
-    # `findings_claude.json` viejos seguirían en el job dir y se entregarían como si
-    # fueran de esta revisión.
-    for stale in ("guion_real.md", "findings_claude.json"):
-        job.path(stale).unlink(missing_ok=True)
+def ask_verdict(job: Job, base_prompt: str, ask, require_guion: bool, label: str = "juez") -> dict:
+    """Pide el veredicto con `ask(prompt) -> texto`, con un reintento si no es válido."""
     last: Exception | None = None
-    verdict = None
     for attempt in (1, 2):
         prompt = base_prompt
         if attempt == 2 and last is not None:
             prompt += (f"\n\nTu respuesta anterior no fue válida ({last}). "
                        "Responde ÚNICAMENTE con el JSON del veredicto, sin texto adicional.")
         try:
-            verdict = parse_verdict(runner(prompt, job.dir), require_guion=require_guion)
-            break
+            return parse_verdict(ask(prompt), require_guion=require_guion)
         except UsageLimitError:
             raise  # sin uso disponible: el segundo intento fallaría igual
         except (ClaudeError, ValueError) as e:
             last = e
-            log.warning("[%s] juez intento %d falló: %s", job.name, attempt, e)
-    if verdict is None:
-        raise JudgeError(f"juez falló tras 2 intentos: {last}")
+            log.warning("[%s] %s intento %d falló: %s", job.name, label, attempt, e)
+    raise JudgeError(f"{label} falló tras 2 intentos: {last}")
 
+
+def verdict_result(job: Job, verdict: dict, manifest: dict, code_findings: list[Finding],
+                   source: str = "claude") -> dict:
+    """Convierte un veredicto válido en hallazgos y deja `guion_real.md` y `findings_claude.json`."""
     valid_frames = {mf["file"] for mf in manifest["frames"]}
     findings = []
     for i, f in enumerate(verdict["findings"]):
@@ -333,10 +342,10 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
             elif frame not in valid_frames and not (frame.startswith("frames/") and job.path(frame).exists()):
                 log.warning("[%s] juez: frame inválido descartado: %s", job.name, frame)
                 frame = None
-        findings.append(Finding(id=f"claude-{i}", type=f["type"], severity=f["severity"], t_start=float(f["t_start"]),
+        findings.append(Finding(id=f"{source}-{i}", type=f["type"], severity=f["severity"], t_start=float(f["t_start"]),
                                 t_end=float(f["t_end"]), title=f["title"], detail=f["detail"],
                                 suggestion=str(f.get("suggestion", "")), frame=frame,
-                                bbox=None, source="claude", check=f["type"]))
+                                bbox=None, source=source, check=f["type"]))
     job.path("findings_claude.json").write_text(json.dumps([f.to_dict() for f in findings], ensure_ascii=False, indent=2))
     job.path("guion_real.md").write_text(verdict["guion_real_md"], encoding="utf-8")
 
@@ -348,3 +357,25 @@ def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: 
             continue
         dismissed.append(d)
     return {"findings": findings, "dismissed": dismissed, "guion_real_md": verdict["guion_real_md"]}
+
+
+def clear_stale_verdict(job: Job) -> None:
+    # Artefactos de la corrida anterior: si el juez falla ahora, un `guion_real.md` o
+    # `findings_claude.json` viejos seguirían en el job dir y se entregarían como si
+    # fueran de esta revisión.
+    for stale in ("guion_real.md", "findings_claude.json"):
+        job.path(stale).unlink(missing_ok=True)
+
+
+def run_judge(job: Job, brand: dict, glossary_text: str, transcript: dict, ocr: dict, technical: dict,
+              code_findings: list[Finding], frames: list[dict], rules: dict, runner: Runner,
+              skill_path: Path = SKILL_PATH, duration: float | None = None,
+              corrections: list[dict] | None = None, context: dict | None = None) -> dict:
+    base_prompt = prepare_judge(job, brand, glossary_text, transcript, ocr, technical, code_findings, frames, rules,
+                                skill_path=skill_path, duration=duration, corrections=corrections, context=context)
+    manifest = json.loads(job.path("judge_manifest.json").read_text())
+    clear_stale_verdict(job)
+    # Sin segmentos de audio no hay diálogo que transcribir: no se exige guion real.
+    verdict = ask_verdict(job, base_prompt, lambda prompt: runner(prompt, job.dir),
+                          require_guion=bool(transcript.get("segments")))
+    return verdict_result(job, verdict, manifest, code_findings)

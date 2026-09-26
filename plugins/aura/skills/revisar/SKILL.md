@@ -11,6 +11,14 @@ El motor vive en `~/videoqa` y todo se lanza como `uv run --project ~/videoqa vi
 Antes de nada, comprueba que la carpeta `~/videoqa` existe (`ls ~/videoqa`). Si no está, dile
 "Todavía no está instalado: escribe `/aura:instalar` y lo dejamos listo" y termina.
 
+**Carpetas de cliente.** Los videos pueden ir sueltos en `01_Entrada/` o dentro de la carpeta de
+un cliente, `01_Entrada/<Cliente>/` (se revisan con el perfil de ese cliente, ver
+`/aura:cliente`). En ese caso todas las rutas de este documento llevan el cliente en medio:
+`02_Con_errores/<Cliente>/<nombre>/`, `03_Aprobado/<Cliente>/<nombre>/`,
+`04_Pruebas_respaldo/<Cliente>/<nombre>/`. `videoqa run` sobre un video ya revisado lo devuelve
+solo a la carpeta de su cliente en `01_Entrada`, con su brief. Al explicar el resultado, di de
+qué cliente es.
+
 ## Paso 1 — Decidir qué revisar
 
 **Si nombró un video concreto** ("revisa el de la promo", "revisa promo_octubre.mp4"):
@@ -19,7 +27,7 @@ Busca el archivo en `01_Entrada/` dentro de la carpeta de Drive (`drive_root` es
 `~/.videoqa/config.yaml`):
 
 ```bash
-ls "<drive_root>/01_Entrada"
+ls "<drive_root>/01_Entrada" "<drive_root>/01_Entrada"/*/
 ```
 
 Si hay un solo candidato parecido, úsalo. Si hay varios, muéstrale la lista de nombres y pregunta
@@ -65,9 +73,9 @@ uv run --project ~/videoqa videoqa run "<drive_root>/02_Con_errores/<nombre>/<ar
 
    La última línea es `JUEZ_PENDIENTE <carpeta>`.
 
-2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: te pide leer los
-   archivos de `<carpeta>/judge_input/` y las fotos de `<carpeta>/claude_frames/` (las rutas del
-   prompt son relativas a `<carpeta>`) y responder solo con un JSON.
+2. Lee con Read `<carpeta>/judge_prompt.md` y síguelo al pie de la letra: los datos del video
+   ya vienen dentro; solo te pide abrir las fotos de `<carpeta>/claude_frames/` (las rutas del
+   prompt son relativas a `<carpeta>`; ábrelas todas a la vez) y responder solo con un JSON.
 
 3. Escribe ese JSON, y nada más, con Write en `<carpeta>/veredicto.json`.
 
@@ -100,6 +108,39 @@ ha revisado a medias**: sigue en `01_Entrada` y no tiene reporte. No sigas el Pa
 
 Con `watch --once`, en la salida aparece "Claude sin uso disponible hasta las HH:MM": igual, los
 que quedaban siguen esperando en `01_Entrada`.
+
+Si ves `EN_ESPERA` y el respaldo no está encendido, añade: "Si quieres que en estos casos los
+revise un modelo gratis en la Mac mientras vuelve Claude, dime «activa el respaldo»."
+
+**Si el reporte dice «Revisado con el juez de respaldo»:** explica el resultado como siempre, pero
+avisa en una frase: "Esta vez lo revisó el modelo de respaldo de la Mac porque Claude no tenía
+uso; es menos preciso, así que mira con cuidado los avisos que dicen «el juez de respaldo cree
+que no es error»."
+
+## Probar el juez de respaldo con un video
+
+Si pide "revisa X solo con el respaldo", "prueba el respaldo con X" o "compara el respaldo con
+Claude en X": es una **prueba**, no la revisión oficial. No mueve el video ni toca el Sheet.
+
+1. Busca el video donde esté: `01_Entrada/`, o ya revisado en `02_Con_errores/<nombre>/` o
+   `03_Aprobado/<nombre>/`.
+2. Avisa: "Lo reviso con el modelo de la Mac. En un M1 tarda unos minutos."
+3. Lánzalo:
+
+```bash
+uv run --project ~/videoqa videoqa run "<ruta del video>" --solo-respaldo
+```
+
+   - `PRUEBA_RESPALDO <resultado> en X min Y s → <ruta>/reporte.md`: lee ese reporte (dentro de
+     `04_Pruebas_respaldo/<nombre>/`).
+   - `RESPALDO_ERROR`: casi siempre es que Ollama no está instalado o arrancado. Dile que escriba
+     `/aura:respaldo` para dejarlo listo.
+4. Explícalo como siempre, diciendo cuánto tardó. Si el video ya tenía la revisión de Claude
+   (en `02_Con_errores/` o `03_Aprobado/`), **compáralos**: qué encontraron los dos, qué solo uno,
+   y si el respaldo dejó avisos del tipo "cree que no es error". Termina con una frase de
+   veredicto ("el respaldo se acercó bastante" / "se le escaparon cosas importantes").
+5. Si aún no está encendido y la prueba salió bien, ofrece: "Si te convence, escribe
+   `/aura:respaldo` y lo dejo encendido para cuando Claude se quede sin uso."
 
 ## Paso 5 — Explicarlo
 

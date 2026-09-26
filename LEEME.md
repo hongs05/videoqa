@@ -16,6 +16,19 @@ Tarda unos minutos por video y te deja un informe con **qué corregir y en qué 
 El video se mueve solo: sale de `01_Entrada` y aparece en una de las otras dos, dentro de una
 carpeta con su nombre.
 
+## Un cliente, una carpeta
+
+Dentro de `01_Entrada` puedes crear una carpeta por cliente, por ejemplo `01_Entrada/Sushi CD/`.
+Lo que subas ahí se revisa con **los criterios de ese cliente**: su marca, su tono, lo que no
+puede salir nunca y lo que debe salir siempre. El perfil se crea hablando con Claude: «crea el
+perfil de Sushi CD». Los resultados salen ordenados igual, en `02_Con_errores/Sushi CD/…` o
+`03_Aprobado/Sushi CD/…`.
+
+**El brief:** si al lado del video pones un texto con el mismo nombre (`reel3.txt` junto a
+`reel3.mp4`) con el objetivo, el guion, el copy y el CTA, la revisión también comprueba que el
+video cumpla lo planeado. También se lo puedes dictar a Claude: «pon el brief del reel3 de Sushi
+CD: …».
+
 ## Qué hay dentro de la carpeta de cada video
 
 - **`reporte.md`** — el informe. Empieza con el semáforo (🟢 o 🔴) y un resumen. Luego:

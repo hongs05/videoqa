@@ -10,6 +10,7 @@ from videoqa.claude_runner import Runner
 from videoqa.config import Settings
 from videoqa.doctor_state import load_wait_until
 from videoqa.pipeline import process_video
+from videoqa.profiles import is_client_folder
 from videoqa.sheet import SheetWriter
 
 log = logging.getLogger("videoqa")
@@ -17,10 +18,18 @@ VIDEO_EXT = {".mp4", ".mov", ".m4v"}
 FAILED_STATE_NAME = "watch_failed.json"
 
 
+def _videos_in(folder: Path) -> list[Path]:
+    return [p for p in folder.iterdir() if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in VIDEO_EXT]
+
+
 def list_videos(entrada: Path) -> list[Path]:
+    """Videos de Entrada: los sueltos y los de cada carpeta de cliente (`01_Entrada/<Cliente>/`)."""
     if not entrada.exists():
         return []
-    vids = [p for p in entrada.iterdir() if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in VIDEO_EXT]
+    vids = _videos_in(entrada)
+    for sub in entrada.iterdir():
+        if sub.is_dir() and is_client_folder(sub.name):
+            vids += _videos_in(sub)
     return sorted(vids, key=lambda p: p.stat().st_mtime)
 
 
@@ -99,7 +108,11 @@ def watch(settings: Settings | list[Settings], rules: dict, runner: Runner,
     # Límite de uso de Claude: si un video lo encontró, TODOS los siguientes también lo
     # harían. Se pausa la cola entera hasta la hora de reinicio (leída también del disco,
     # para que un reinicio del watcher no la ignore).
-    pause_until = load_wait_until() or 0.0
+    # Con el juez de respaldo encendido no se pausa de entrada: los videos los revisa el
+    # modelo local mientras Claude no tenga uso (solo se pausa si el respaldo también falla).
+    from videoqa.local_judge import fallback_config
+
+    pause_until = 0.0 if fallback_config(rules) else (load_wait_until() or 0.0)
     pause_logged = 0.0  # se avisa una vez por pausa, no en cada vuelta de 10 s
     while True:
         for carpeta in carpetas:

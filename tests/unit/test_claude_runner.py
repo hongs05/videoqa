@@ -100,3 +100,33 @@ def test_run_claude_sin_herramientas_omite_el_flag(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run", fake_run)
     run_claude("hola", tmp_path, allowed_tools=())
     assert "--allowedTools" not in visto["cmd"]
+
+
+def test_run_claude_modo_ligero_limita_herramientas_y_prompt_de_sistema(monkeypatch, tmp_path):
+    import videoqa.claude_runner as cr
+    monkeypatch.setattr(cr, "_lean_supported", True)
+    visto = {}
+    def fake_run(cmd, **kw):
+        visto["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"is_error": False, "result": "ok"}), stderr="")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    run_claude("hola", tmp_path)
+    cmd = visto["cmd"]
+    assert cmd[cmd.index("--tools") + 1] == "Read"
+    assert cmd[cmd.index("--system-prompt") + 1] == cr.LEAN_SYSTEM_PROMPT
+
+
+def test_run_claude_version_vieja_sin_opciones_ligeras_reintenta_sin_ellas(monkeypatch, tmp_path):
+    """Una Mac con Claude Code antiguo no debe quedarse sin juez por `--tools`."""
+    import videoqa.claude_runner as cr
+    monkeypatch.setattr(cr, "_lean_supported", True)
+    llamadas = []
+    def fake_run(cmd, **kw):
+        llamadas.append(cmd)
+        if "--tools" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="error: unknown option '--tools'")
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"is_error": False, "result": "ok"}), stderr="")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert run_claude("hola", tmp_path) == "ok"
+    assert run_claude("otra", tmp_path) == "ok"
+    assert len(llamadas) == 3 and "--tools" not in llamadas[2], "tras el rechazo ya no se prueba el modo ligero"
